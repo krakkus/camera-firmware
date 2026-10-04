@@ -40,6 +40,12 @@ class DeviceConfig:
     # system time zone
     latitude: float | None = None
     longitude: float | None = None
+    # HTTPS next to HTTP, with a self-signed certificate made on first start (tls.py).
+    # 0: off. Plain HTTP stays for programs that cannot accept such a certificate;
+    # browsers opening a page over HTTP are sent to HTTPS when http_redirect is on.
+    https_port: int = 8443
+    http_redirect: bool = True
+    tls_dir: str = "tls"            # cert.pem and key.pem; relative to the working directory
     # live RTSP streams (see rtsp.py)
     rtsp_enabled: bool = True
     rtsp_port: int = 8554           # TCP; UDP viewers also use this port and the next

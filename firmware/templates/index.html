@@ -28,8 +28,8 @@
     {% if c.has_video %}
     {% set base = request.host_url.rstrip('/') %}
     <div class="urls">
-      <span>Stream</span><input readonly value="{{ base }}/stream/{{ c.id }}.mjpg"><button type="button" class="copy">Copy</button>
-      <span>Frame</span><input readonly value="{{ base }}/frame/{{ c.id }}.jpg"><button type="button" class="copy">Copy</button>
+      <span>Stream</span><input readonly value="{{ base }}/stream/{{ c.id }}.mjpg?token={{ token }}"><button type="button" class="copy">Copy</button>
+      <span>Frame</span><input readonly value="{{ base }}/frame/{{ c.id }}.jpg?token={{ token }}"><button type="button" class="copy">Copy</button>
       {% if rtsp_base %}<span title="H.264{{ ' + audio' if c.audio_source }}. Clients that ask for a user name: admin, with the token as password">RTSP</span><input readonly value="{{ rtsp_base }}/{{ c.id }}?token={{ token }}"><button type="button" class="copy">Copy</button>{% endif %}
     </div>
     {% endif %}

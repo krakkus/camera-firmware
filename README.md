@@ -32,11 +32,12 @@ cp config.example.json config.json      # see "Configuration" before exposing it
 
 Then open http://127.0.0.1:5000. The page lists every camera and microphone it finds.
 
-> **There is no authentication.** The example config binds to `127.0.0.1`. If `config.json`
-> does not exist, the service creates one with the code defaults, which listen on **all**
-> interfaces (`0.0.0.0`). Put it behind a trusted network or a reverse proxy with auth
-> before changing `host`. It also runs on Flask's development server, not a production
-> WSGI server.
+> **Everything needs the device token** (see [Access](#access)): it is generated on first
+> start and written to `config.json` as `token`. The example config binds to `127.0.0.1`;
+> without a `config.json` the service listens on **all** interfaces (`0.0.0.0`). Traffic is
+> HTTPS (self-signed, see [Access](#access)) next to plain HTTP and RTSP, which anyone on the
+> network can read, token included: don't expose it to the internet; use a VPN for that. It also runs on Flask's development server,
+> not a production WSGI server.
 
 ## Configuration
 
@@ -53,11 +54,38 @@ serials); `config.example.json` shows the format.
 | `prune_enabled`, `min_free_percent` | `true`, `10` | Delete the oldest recordings when free space falls below this |
 | `yolo_model` | `models/yolov8n.onnx` | YOLOv8-format ONNX model for object detection |
 | `latitude`, `longitude` | none | Where the device is, for sunrise and sunset. Without them, a city in the system time zone |
-| `token` | generated | The device's access token (RTSP uses it): 11 random URL-safe characters unless you set one (4-64 of `A-Z a-z 0-9 - _`) |
+| `token` | generated | The access token for everything (see [Access](#access)): 11 random URL-safe characters unless you set one (4-64 of `A-Z a-z 0-9 - _`) |
+| `https_port` | `8443` | HTTPS with a self-signed certificate, next to HTTP; `0` turns it off (restart to change) |
+| `http_redirect` | `true` | Browsers opening a page over HTTP go to HTTPS; streams and API stay on HTTP too |
+| `tls_dir` | `tls` | Where the certificate and key are kept |
 | `rtsp_enabled`, `rtsp_port` | `true`, `8554` | RTSP server (see below); UDP viewers also use the port after it |
 
 Each entry in `cameras` has an `id` (letters, digits, `-`, `_`; used in URLs), `name`,
 `enabled`, a video source, an optional `audio_source`, and `settings`.
+
+## Access
+
+One token protects everything: pages, API, streams, snapshots, recordings and RTSP. It is
+11 random URL-safe characters (like a YouTube video id) unless you set one; the Config
+page shows it under Global and makes a new one. Give it in any of these ways:
+
+- `?token=<token>` on any URL, for other programs: `http://<host>:5000/stream/cam0.mjpg?token=...`
+- HTTP Basic (RTSP also Digest) with user `admin` or `root` and the token as password:
+  `curl -u admin:<token> http://<host>:5000/api/cameras`
+- in a browser: the login page, or any page opened once with `?token=`. Either sets a
+  session cookie for a year. A new token logs every browser out, except the one that set it
+
+A wrong token costs a second, to slow down guessing. The Live page's copy-ready URLs include
+the token.
+
+**HTTPS** runs on port 8443 next to HTTP, with a self-signed certificate made on first
+start (in `tls/`, for the host name, `<host name>.local` and the current IP addresses), the
+way most network cameras do it. Browsers warn once since nobody vouches for it: compare
+the SHA-256 fingerprint on the Config page with the browser's. Opening a page over HTTP
+sends the browser to HTTPS; streams, snapshots and the API stay on plain HTTP as well, for
+programs that do not accept such a certificate (`curl -k`, ffmpeg's default and most players
+do). Delete `tls/` and restart for a new certificate, after a name or address change. RTSP
+is not encrypted.
 
 ## Web pages
 
@@ -178,8 +206,7 @@ starting while it runs waits for the next keyframe (one per second), and the fir
 waits about a second for the encoder. Viewers can use TCP (interleaved) or UDP. The stream
 ends, and clients reconnect, when the camera is unplugged or its resolution changes.
 
-The token is shown on the Live and Config pages, which have no authentication themselves:
-it keeps out whoever can reach port 8554 but not the web interface.
+The URLs on the Live page include the token, ready to copy.
 
 ### Performance history
 
@@ -188,7 +215,8 @@ A background thread samples CPU, memory, disk and GPU every 10 seconds into `met
 
 ## HTTP API
 
-All bodies are JSON; errors are `{"error": "..."}` with status 400 or 404.
+All bodies are JSON; errors are `{"error": "..."}` with status 400 or 404. Every request
+needs the token (see [Access](#access)); without it the answer is 401.
 
 | Request | Purpose |
 |---|---|
@@ -210,7 +238,7 @@ All bodies are JSON; errors are `{"error": "..."}` with status 400 or 404.
 Example: switch a camera to object recording and watch for cats.
 
 ```sh
-curl -X PATCH localhost:5000/api/cameras/cam0 -H 'content-type: application/json' \
+curl -u admin:<token> -X PATCH localhost:5000/api/cameras/cam0 -H 'content-type: application/json' \
   -d '{"settings": {"record_mode": "object", "object_classes": ["cat"], "object_confidence": 0.6}}'
 ```
 
@@ -230,6 +258,8 @@ firmware/
   controls.py           V4L2 controls and the software tuning loop
   devices.py            discovery of cameras, microphones and capture modes
   storage.py            storage location, usage, pruning
+  auth.py               the device token: URL, Basic auth, session cookie
+  tls.py                self-signed HTTPS certificate
   metrics.py            performance sampler
   web.py, templates/    Flask app and pages
   static/vendor/        Chart.js, zoom plugin, Hammer.js (served locally)

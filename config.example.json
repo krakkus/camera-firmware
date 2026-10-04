@@ -9,6 +9,9 @@
     "segment_minutes": 5,
     "yolo_model": "models/yolov8n.onnx",
     "token": "",
+    "https_port": 8443,
+    "http_redirect": true,
+    "tls_dir": "tls",
     "rtsp_enabled": true,
     "rtsp_port": 8554
   },

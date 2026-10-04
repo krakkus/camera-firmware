@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import numpy as np
 
+from .auth import REALM, USERS, failed, same, user_ok
 from .devices import resolve_alsa
 from .recorder import Encoder
 
@@ -40,8 +41,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-USERS = ("admin", "root")       # accepted user names; the password is the token
-REALM = "camera"
 LINGER = 10.0           # seconds the encoder keeps running after the last viewer left
 START_TIMEOUT = 8.0     # first viewer: wait this long for the camera and the encoder
 STALL_TIMEOUT = 10.0    # no frame from the camera for this long: end the stream
@@ -49,7 +48,6 @@ SESSION_TIMEOUT = 60    # announced to clients; UDP viewers must send keep-alive
 TCP_BACKLOG = 2000      # packets queued for one TCP viewer before it counts as stuck
 PKT_SIZE = 1200         # RTP packet size: fits a typical MTU, for UDP viewers
 MAX_CONNECTIONS = 64
-AUTH_FAIL_DELAY = 1.0   # slows down guessing
 
 REASONS = {200: "OK", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found",
            454: "Session Not Found", 455: "Method Not Valid in This State",
@@ -526,14 +524,14 @@ class Connection:
         ok = False
         auth = headers.get("authorization", "")
         scheme, _, rest = auth.partition(" ")
-        if url_token and token:
-            ok = hmac.compare_digest(url_token.encode(), token.encode())
+        if url_token:
+            ok = same(url_token, token)
         if not ok and token and scheme.lower() == "basic":
             try:
                 user, _, pw = base64.b64decode(rest.strip()).decode().partition(":")
             except (ValueError, UnicodeDecodeError):
                 user, pw = "", ""
-            ok = user in USERS and hmac.compare_digest(pw.encode(), token.encode())
+            ok = user_ok(user, pw, token)
         elif not ok and token and scheme.lower() == "digest":
             p = {m[0].lower(): m[1] if m[1] else m[2]
                  for m in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]*))', rest)}
@@ -554,7 +552,7 @@ class Connection:
             if not self._auth_warned:
                 log.warning("rtsp: %s: wrong token", self.ip)
                 self._auth_warned = True
-            time.sleep(AUTH_FAIL_DELAY)
+            failed()
         return False
 
 

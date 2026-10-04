@@ -4,11 +4,12 @@ from __future__ import annotations
 import re
 from dataclasses import asdict
 from datetime import datetime
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
-from flask import (Flask, Response, abort, jsonify, render_template, request,
+from flask import (Flask, Response, abort, jsonify, redirect, render_template, request,
                    send_from_directory)
 
+from . import auth, tls
 from .camera import Camera
 from .coco import COCO_CLASSES
 from .daynight import location
@@ -19,6 +20,8 @@ from .recordings import NAME, list_recordings
 from .service import Service
 
 BOUNDARY = "frame"
+PAGES = {"index", "config_page", "recordings_page", "performance_page"}   # login redirects here
+OPEN = {"login", "static"}          # reachable without the token
 FOLDER = re.compile(r"^[A-Za-z0-9_-]+$")       # same characters as a camera id
 
 
@@ -51,6 +54,76 @@ def create_app(service: Service) -> Flask:
             abort(404, "this camera has no video (audio only)")
         return cam
 
+    # --- token -------------------------------------------------------------
+
+    def token() -> str:
+        return service.server.config.token
+
+    def with_session(resp: Response) -> Response:
+        resp.set_cookie(auth.COOKIE, auth.session_value(token()), max_age=auth.COOKIE_MAX_AGE,
+                        httponly=True, samesite="Lax", secure=request.is_secure)
+        return resp
+
+    def host_name() -> str:
+        host = urlsplit(request.host_url).hostname or "localhost"
+        return f"[{host}]" if ":" in host else host
+
+    def without_token(url_args) -> str:
+        """The current page's URL minus ?token= (so it does not linger in the address bar)."""
+        rest = [(k, v) for k, v in url_args.items(multi=True) if k != "token"]
+        return request.path + ("?" + urlencode(rest) if rest else "")
+
+    @app.before_request
+    def to_https():
+        """Browsers opening a page over plain HTTP go to HTTPS; programs using streams and
+        the API over HTTP are left alone (they may not accept a self-signed certificate)."""
+        port = app.config.get("HTTPS_PORT")
+        if (port and service.server.config.http_redirect and not request.is_secure
+                and request.method == "GET" and request.endpoint in PAGES | {"login"}):
+            return redirect(f"https://{host_name()}:{port}{request.full_path.rstrip('?')}")
+        return None
+
+    @app.before_request
+    def require_token():
+        if request.endpoint in OPEN:
+            return None
+        t = token()
+        given = request.args.get("token")
+        basic = request.authorization
+        if auth.same(given, t):
+            if request.method == "GET" and request.endpoint in PAGES:
+                return with_session(redirect(without_token(request.args)))   # log the browser in
+            return None
+        if basic and basic.type == "basic" and auth.user_ok(basic.username, basic.password, t):
+            return None
+        if auth.same(request.cookies.get(auth.COOKIE), auth.session_value(t)):
+            return None
+        if given or basic:
+            auth.failed()
+        if request.method == "GET" and request.endpoint in PAGES:
+            return redirect("/login?" + urlencode({"next": request.full_path.rstrip("?")}))
+        return Response("token required: ?token=..., or user admin with the token as password\n",
+                        401, {"WWW-Authenticate": f'Basic realm="{auth.REALM}"'})
+
+    def safe_next(url: str | None) -> str:
+        return url if url and url.startswith("/") and not url.startswith("//") else "/"
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        nxt = safe_next(request.values.get("next"))
+        if request.method == "POST":
+            if auth.same(request.form.get("token", "").strip(), token()):
+                return with_session(redirect(nxt))
+            auth.failed()
+            return render_template("login.html", next=nxt, error=True), 401
+        return render_template("login.html", next=nxt, error=False)
+
+    @app.get("/logout")
+    def logout():
+        resp = redirect("/login")
+        resp.delete_cookie(auth.COOKIE)
+        return resp
+
     @app.errorhandler(KeyError)
     def not_found(e):
         return jsonify(error=str(e.args[0])), 404
@@ -65,10 +138,7 @@ def create_app(service: Service) -> Flask:
         """rtsp://<host this page was loaded from>:<port>, or None while RTSP is off."""
         if service.rtsp is None:
             return None
-        host = urlsplit(request.host_url).hostname or "localhost"
-        if ":" in host:
-            host = f"[{host}]"
-        return f"rtsp://{host}:{service.server.config.rtsp_port}"
+        return f"rtsp://{host_name()}:{service.server.config.rtsp_port}"
 
     @app.get("/")
     def index():
@@ -76,6 +146,14 @@ def create_app(service: Service) -> Flask:
         return render_template("index.html", cameras=cameras, active="live",
                                virtual={c.id for c in cameras if service.is_virtual(c.id)},
                                rtsp_base=rtsp_base(), token=service.server.config.token)
+
+    def https_info() -> dict | None:
+        cert = app.config.get("TLS_CERT")
+        if not cert:
+            return None
+        port = app.config["HTTPS_PORT"]
+        return {"url": f"https://{host_name()}:{port}/", "http_port": service.server.config.port,
+                "fingerprint": tls.fingerprint(cert), "secure": request.is_secure}
 
     @app.get("/config")
     def config_page():
@@ -85,7 +163,7 @@ def create_app(service: Service) -> Flask:
             "config.html", active="config", groups=GROUPS, devices=devices,
             manual_mode=MANUAL_MODE, coco=COCO_CLASSES, segment_choices=SEGMENT_CHOICES,
             device=service.server.config, storage_candidates=service.storage.candidates(),
-            location=location(service.server.config),
+            location=location(service.server.config), https=https_info(),
             cameras=[dict(cam=c, settings=asdict(c.settings), virtual=service.is_virtual(c.id),
                           video_options=video_options(c, devices),
                           resolutions=resolution_options(c, service.modes_for(c)),
@@ -135,7 +213,10 @@ def create_app(service: Service) -> Flask:
         if unknown:
             raise ValueError(f"unknown fields: {', '.join(sorted(unknown))}")
         service.update_device(**data)
-        return jsonify(asdict(service.server.config))
+        resp = jsonify(asdict(service.server.config))
+        if "token" in data:
+            with_session(resp)          # the old session cookie no longer matches
+        return resp
 
     @app.get("/api/storage")
     def storage():

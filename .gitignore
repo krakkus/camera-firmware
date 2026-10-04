@@ -38,6 +38,9 @@ Thumbs.db
 .claude/
 .env
 
+# HTTPS certificate and private key, made per device on first start
+/tls/
+
 # Performance history written by the service
 /metrics.jsonl
 /metrics.tmp

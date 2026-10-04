@@ -1,11 +1,19 @@
 """Camera firmware entry point: python main.py [--config config.json]"""
 import argparse
 import logging
+import ssl
+import subprocess
+import threading
 from pathlib import Path
 
+from werkzeug.serving import make_server
+
+from firmware import tls
 from firmware.camera_server import CameraServer
 from firmware.service import Service
 from firmware.web import create_app
+
+log = logging.getLogger("main")
 
 
 def main() -> None:
@@ -19,10 +27,29 @@ def main() -> None:
         server.save()          # write defaults so there's a file to edit
     service = Service(server)
     service.start()
+    cfg = server.config
+    app = create_app(service)
+    # threaded: each MJPEG viewer holds a request thread open
+    servers = [make_server(cfg.host, cfg.port, app, threaded=True)]
+    log.info("http on %s:%d", cfg.host, cfg.port)
+    if cfg.https_port:
+        try:
+            cert, key = tls.ensure(cfg.tls_dir, cfg.device_name)
+            servers.append(make_server(cfg.host, cfg.https_port, app, threaded=True,
+                                       ssl_context=tls.context(cert, key)))
+            app.config["HTTPS_PORT"], app.config["TLS_CERT"] = cfg.https_port, cert
+            log.info("https on %s:%d", cfg.host, cfg.https_port)
+        except (OSError, subprocess.SubprocessError, ssl.SSLError) as e:
+            log.error("https not available: %s", e)
+    for s in servers[1:]:
+        threading.Thread(target=s.serve_forever, name="https", daemon=True).start()
     try:
-        # threaded: each MJPEG viewer holds a request thread open
-        create_app(service).run(server.config.host, server.config.port, threaded=True)
+        servers[0].serve_forever()
+    except KeyboardInterrupt:
+        pass
     finally:
+        for s in servers[1:]:
+            s.shutdown()
         service.stop()
 
 

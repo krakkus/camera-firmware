@@ -126,6 +126,15 @@
         {% for m in segment_choices %}<option value="{{ m }}" {% if m == device.segment_minutes %}selected{% endif %}>{{ m }} minute{{ 's' if m > 1 }}</option>{% endfor %}
       </select></div>
   </div>
+  <h4>HTTPS</h4>
+  {% if https %}
+  <div class="usage" style="margin-top:0">
+    <div>{% if https.secure %}This page is on HTTPS.{% else %}<a href="{{ https.url }}">{{ https.url }}</a>{% endif %}
+      Plain HTTP (port {{ https.http_port }}) stays available for programs that do not accept the certificate.</div>
+    <div>Self-signed certificate: the browser warns once. Its SHA-256 fingerprint should read</div>
+    <div class="k" style="font-family:monospace; word-break:break-all; color:#aaa">{{ https.fingerprint }}</div>
+  </div>
+  {% else %}<p class="muted" style="margin:0">Off (https_port 0 in config.json), or the certificate could not be made: see the log.</p>{% endif %}
   <h4>Location <small class="muted" style="text-transform:none; letter-spacing:0">for sunrise and sunset</small></h4>
   <div class="grid2">
     <div class="field"><label>Latitude</label>
