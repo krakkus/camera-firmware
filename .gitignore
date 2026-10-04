@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime state: the machine's own config (device serials, ports, paths)
+# and everything the service writes. See config.example.json for the format.
+/config.json
+/config.*.json
+!/config.example.json
+*.log
+nohup.out
+
+# Recordings and any other storage location used during development
+/recordings/
+/storage/
+
+# Model weights: large binaries, and YOLOv8 weights are AGPL-3.0 licensed.
+# See models/README.md for how to produce them.
+/models/*
+!/models/README.md
+
+# Editors, OS, tooling
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+.claude/
+.env
+
+# Performance history written by the service
+/metrics.jsonl
+/metrics.tmp

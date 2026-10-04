@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Performance{% endblock %}
+{% block style %}
+  .chart-card canvas { max-height: 220px; }
+  .chart-card h3 { margin: 0 0 8px; font-size: 15px; display:flex; justify-content:space-between; align-items:center; color:#ddd; }
+  .chart-card h3 button { font-size: 12px; padding: 3px 8px; }
+  .chart-hint { color:#777; font-size:12px; margin: 6px 0 0; }
+  .chart-note { color:#777; font-size:12px; margin:6px 0 0; }
+{% endblock %}
+
+{% block content %}
+<div class="card chart-card">
+  <h3>CPU <button onclick="resetZoom('cpu')">Reset zoom</button></h3>
+  <canvas id="chart-cpu"></canvas>
+</div>
+<div class="card chart-card">
+  <h3>Memory <button onclick="resetZoom('mem')">Reset zoom</button></h3>
+  <canvas id="chart-mem"></canvas>
+</div>
+<div class="card chart-card">
+  <h3>GPU <button onclick="resetZoom('gpu')">Reset zoom</button></h3>
+  <canvas id="chart-gpu"></canvas>
+  {% if not has_gpu %}<p class="chart-note">No GPU sampler available: this needs <code>nvidia-smi</code>, or <code>intel_gpu_top</code> with a passwordless sudo rule for it.</p>{% endif %}
+</div>
+<div class="card chart-card">
+  <h3>Disk I/O busy % <button onclick="resetZoom('diskio')">Reset zoom</button></h3>
+  <canvas id="chart-diskio"></canvas>
+  <p class="chart-note">Network disks (NFS) have no busy figure. A value near 100% on a drive that is recording steadily is normal, not a backlog.</p>
+</div>
+<div class="card chart-card">
+  <h3>Disk space used % <button onclick="resetZoom('diskspace')">Reset zoom</button></h3>
+  <canvas id="chart-diskspace"></canvas>
+</div>
+<p class="chart-hint">Scroll to zoom, drag to pan, "Reset zoom" to snap back to the full window. Updates live every {{ sample_interval|int }}s.</p>
+{% endblock %}
+
+{% block script %}
+<!-- served locally so the page works on a box without internet; hammer.js is for drag-panning -->
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/hammer.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/chartjs-plugin-zoom.min.js') }}"></script>
+<script>
+  const SAMPLE_INTERVAL_MS = {{ sample_interval * 1000 }};
+  const RETENTION_MS = 25 * 3600 * 1000;
+
+  function fmtTime(ts) {
+    return new Date(ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  }
+
+  function baseOptions(yTitle) {
+    return {
+      animation: false,
+      parsing: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: { color: '#999', callback: fmtTime, maxTicksLimit: 8 },
+          grid: { color: '#2a2a2a' },
+        },
+        y: {
+          title: { display: !!yTitle, text: yTitle, color: '#999' },
+          ticks: { color: '#999' },
+          grid: { color: '#2a2a2a' },
+          beginAtZero: true,
+        },
+      },
+      plugins: {
+        legend: { labels: { color: '#ccc' } },
+        tooltip: {
+          callbacks: {
+            title: (items) => items.length ? fmtTime(items[0].raw.x) : '',
+            label: (item) => {
+              let s = `${item.dataset.label}: ${item.raw.y}`;
+              if (item.raw.used_gb !== undefined) {
+                s += ` (${item.raw.used_gb}/${item.raw.total_gb} GB)`;
+              }
+              return s;
+            },
+          },
+        },
+        zoom: {
+          pan: { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+          limits: { x: { min: 'original', max: 'original' } },
+        },
+      },
+    };
+  }
+
+  function mkLine(label, color) {
+    return {
+      label, data: [], borderColor: color, backgroundColor: color,
+      borderWidth: 1.5, pointRadius: 0, spanGaps: false, tension: 0.15,
+    };
+  }
+
+  const charts = {};
+
+  function mkChart(key, canvasId, datasets, yTitle) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    charts[key] = new Chart(ctx, { type: 'line', data: { datasets }, options: baseOptions(yTitle) });
+  }
+
+  function resetZoom(key) {
+    if (charts[key]) charts[key].resetZoom();
+  }
+
+  mkChart('cpu', 'chart-cpu', [mkLine('CPU %', '#4a90d9')], '%');
+  mkChart('mem', 'chart-mem', [mkLine('Memory %', '#d9944a')], '%');
+  mkChart('gpu', 'chart-gpu', [mkLine('Render %', '#6fcf97'), mkLine('Video %', '#9b6fcf')], '%');
+  mkChart('diskio', 'chart-diskio', [mkLine('Root', '#e0d050'), mkLine('Recordings', '#50c0e0')], '%');
+  mkChart('diskspace', 'chart-diskspace', [mkLine('Root', '#e0d050'), mkLine('Recordings', '#50c0e0')], '%');
+
+  const has = (v) => v !== null && v !== undefined;
+
+  function pushSample(s) {
+    const x = s.ts;
+    if (has(s.cpu_pct)) charts.cpu.data.datasets[0].data.push({x, y: s.cpu_pct});
+    if (has(s.mem_pct)) {
+      charts.mem.data.datasets[0].data.push({x, y: s.mem_pct, used_gb: s.mem_used_gb, total_gb: s.mem_total_gb});
+    }
+    if (has(s.gpu_pct)) {
+      charts.gpu.data.datasets[0].data.push({x, y: s.gpu_pct});
+      charts.gpu.data.datasets[1].data.push({x, y: s.gpu_video_pct});
+    }
+    const disk = s.disk || {}, root = disk.root || {}, rec = disk.recordings || {};
+    if (has(root.busy_pct)) charts.diskio.data.datasets[0].data.push({x, y: root.busy_pct});
+    if (has(rec.busy_pct)) charts.diskio.data.datasets[1].data.push({x, y: rec.busy_pct});
+    if (has(root.used_pct)) charts.diskspace.data.datasets[0].data.push({x, y: root.used_pct});
+    if (has(rec.used_pct)) charts.diskspace.data.datasets[1].data.push({x, y: rec.used_pct});
+  }
+
+  function trimOld() {
+    const cutoff = Date.now() / 1000 - RETENTION_MS / 1000;
+    for (const chart of Object.values(charts)) {
+      for (const ds of chart.data.datasets) {
+        while (ds.data.length && ds.data[0].x < cutoff) ds.data.shift();
+      }
+    }
+  }
+
+  let lastTs = 0;
+
+  async function loadHistory() {
+    const samples = await (await fetch('/metrics/history')).json();
+    samples.sort((a, b) => a.ts - b.ts);
+    for (const s of samples) { pushSample(s); lastTs = Math.max(lastTs, s.ts); }
+    for (const chart of Object.values(charts)) chart.update();
+  }
+
+  async function pollLatest() {
+    try {
+      const samples = await (await fetch('/metrics/latest?since=' + lastTs)).json();
+      samples.sort((a, b) => a.ts - b.ts);
+      if (samples.length) {
+        for (const s of samples) { pushSample(s); lastTs = Math.max(lastTs, s.ts); }
+        trimOld();
+        for (const chart of Object.values(charts)) chart.update('none');
+      }
+    } catch (e) {
+      // transient network hiccup: try again on the next tick
+    }
+  }
+
+  loadHistory().then(() => setInterval(pollLatest, SAMPLE_INTERVAL_MS));
+</script>
+{% endblock %}

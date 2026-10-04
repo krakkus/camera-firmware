@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block style %}
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr)); gap:16px; }
+  .cam { background:#181818; border:1px solid #333; border-radius:6px; overflow:hidden; }
+  .cam img { width:100%; display:block; background:#000; min-height:200px; }
+  .cam .audio { display:flex; align-items:center; justify-content:center; min-height:200px; color:#777; }
+  .bar { padding:8px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .bar a { color:#6fa8dc; text-decoration:none; }
+  .urls { padding:0 12px 12px; display:grid; grid-template-columns:auto 1fr auto; gap:6px 8px; align-items:center; font-size:12px; }
+  .urls span { color:#777; }
+  .urls input { min-width:0; background:#111; color:#aaa; border:1px solid #333; border-radius:4px; padding:4px 6px; font:12px monospace; }
+  .urls button { padding:3px 10px; font-size:12px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#555; margin-right:6px; }
+  .dot.rec { background:#e33; }
+  /* "fullscreen": the picture fills the browser window */
+  .cam img.fs { position:fixed; inset:0; z-index:100; width:100vw; height:100vh; object-fit:contain; cursor:zoom-out; }
+{% endblock %}
+{% block content %}
+<div class="grid">
+{% for c in cameras %}
+  <div class="cam">
+    {% if c.has_video %}<img data-src="/stream/{{ c.id }}.mjpg" data-id="{{ c.id }}" alt="{{ c.name }}">
+    {% else %}<div class="audio">&#127908; audio only</div>{% endif %}
+    <div class="bar">
+      <span><span class="dot" id="d-{{ c.id }}"></span>{{ c.name }}{% if c.id in virtual %} <small class="muted">(new device)</small>{% endif %}</span>
+      <span>{% if c.has_video %}<a href="#" class="fullscreen">fullscreen</a> · <a href="/frame/{{ c.id }}.jpg">snapshot</a> · {% endif %}<a href="/recordings?camera={{ c.id }}">recordings</a> · <a href="/api/cameras/{{ c.id }}">json</a></span>
+    </div>
+    {% if c.has_video %}
+    {% set base = request.host_url.rstrip('/') %}
+    <div class="urls">
+      <span>Stream</span><input readonly value="{{ base }}/stream/{{ c.id }}.mjpg"><button type="button" class="copy">Copy</button>
+      <span>Frame</span><input readonly value="{{ base }}/frame/{{ c.id }}.jpg"><button type="button" class="copy">Copy</button>
+      {% if rtsp_base %}<span title="H.264{{ ' + audio' if c.audio_source }}. Clients that ask for a user name: admin, with the token as password">RTSP</span><input readonly value="{{ rtsp_base }}/{{ c.id }}?token={{ token }}"><button type="button" class="copy">Copy</button>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="muted">No cameras or microphones found. Plug one in, or POST one to /api/cameras.</p>
+{% endfor %}
+</div>
+{% endblock %}
+{% block script %}
+<script>
+// fullscreen: the picture fills the browser window; a click on it or Esc closes it
+document.addEventListener('click', function (e) {
+  var link = e.target.closest('a.fullscreen');
+  if (link) {
+    e.preventDefault();
+    link.closest('.cam').querySelector('img').classList.add('fs');
+    return;
+  }
+  if (e.target.matches('.cam img.fs')) { e.target.classList.remove('fs'); return; }
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') document.querySelectorAll('.cam img.fs').forEach(function (img) { img.classList.remove('fs'); });
+});
+
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('button.copy');
+  if (btn) {
+    var input = btn.previousElementSibling;
+    input.select();
+    // navigator.clipboard needs https; this page is usually plain http on a LAN
+    var ok = navigator.clipboard ? navigator.clipboard.writeText(input.value).then(function () { return true; }, function () { return false; })
+                                 : Promise.resolve(document.execCommand('copy'));
+    ok.then(function (done) { btn.textContent = done ? 'Copied' : 'Press Ctrl+C'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); });
+  } else if (e.target.matches('.urls input')) e.target.select();
+});
+
+// --- live streams -----------------------------------------------------------
+// A stream connects only while its card is on screen and the page is visible.
+// Mobile browsers silently kill a long MJPEG response when the screen locks, the
+// tab is backgrounded or the network changes, and the <img> then stays frozen, so
+// every stream is reopened on return, after an error, and when its camera reconnects.
+var onScreen = new Set();
+function startStream(img) {
+  if (!document.hidden && onScreen.has(img)) img.src = img.dataset.src + '?t=' + Date.now();
+}
+function stopStream(img) { clearTimeout(img.retry); img.removeAttribute('src'); }
+function restartAll() { document.querySelectorAll('.cam img').forEach(function (img) { stopStream(img); startStream(img); }); }
+
+var io = new IntersectionObserver(function (entries) {
+  entries.forEach(function (en) {
+    if (en.isIntersecting) { onScreen.add(en.target); if (!en.target.getAttribute('src')) startStream(en.target); }
+    else { onScreen.delete(en.target); stopStream(en.target); }
+  });
+}, { rootMargin: '150px' });
+document.querySelectorAll('.cam img').forEach(function (img) {
+  io.observe(img);
+  img.addEventListener('error', function () {
+    if (!img.getAttribute('src')) return;
+    clearTimeout(img.retry);
+    img.retry = setTimeout(function () { startStream(img); }, 3000);
+  });
+});
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) document.querySelectorAll('.cam img').forEach(stopStream);
+  else restartAll();
+});
+window.addEventListener('pageshow', function (e) { if (e.persisted) restartAll(); });
+window.addEventListener('online', restartAll);
+
+var wasConnected = {};
+var shown = Array.from(document.querySelectorAll('.cam [id^="d-"]'), function (d) { return d.id.slice(2); }).sort().join(',');
+async function poll() {
+  try {
+    var cams = await (await fetch('/api/cameras')).json();
+    // a camera was plugged in or removed: nothing to lose on this page, so just reload
+    if (cams.map(function (c) { return c.id; }).sort().join(',') !== shown) return location.reload();
+    for (const c of cams) {
+      document.getElementById('d-' + c.id)?.classList.toggle('rec', c.status.recording);
+      var img = document.querySelector('.cam img[data-id="' + c.id + '"]');
+      if (img && c.status.connected && wasConnected[c.id] === false) startStream(img);
+      wasConnected[c.id] = !!c.status.connected;
+    }
+  } catch (e) {}
+  setTimeout(poll, 2000);
+}
+poll();
+</script>
+{% endblock %}

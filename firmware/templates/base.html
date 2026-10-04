@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ device_name }}{% endblock %}</title>
+<style>
+  body { margin:0; background:#111; color:#ccc; font-family:sans-serif; }
+  nav { position:sticky; top:0; z-index:10; background:#1a1a1a; border-bottom:1px solid #333; }
+  nav .nav-inner { display:flex; gap:16px; padding:10px 16px; max-width:960px; margin:0 auto; }
+  nav a { color:#ccc; text-decoration:none; }
+  nav a:hover, nav a.active { color:#fff; }
+  nav .brand { margin-left:auto; color:#777; }
+  .content { padding:16px; max-width:960px; margin:0 auto; }
+  table { border-collapse: collapse; width:100%; }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid #333; }
+  a.btn, button { background:#2a2a2a; color:#ccc; border:1px solid #444; padding:6px 12px;
+                  border-radius:4px; cursor:pointer; text-decoration:none; display:inline-block; font-size:14px; }
+  a.btn:hover, button:hover { background:#333; }
+  .card { background:#181818; border:1px solid #333; border-radius:6px; padding:16px; margin-bottom:16px; }
+  /* action buttons: green = save/confirm, amber = reset, red = destructive */
+  button.primary { background:#1f5f2c; border-color:#2f8a41; color:#e6ffe9; }
+  button.primary:hover { background:#27763a; border-color:#3aa24f; }
+  button.warn { background:#5c4713; border-color:#8a6a1c; color:#ffe9b0; }
+  button.warn:hover { background:#735717; border-color:#b0852a; }
+  button.danger { background:#5e2020; border-color:#8c3030; color:#ffd6d6; }
+  button.danger:hover { background:#7a2727; border-color:#b43d3d; }
+  select { background:#2a2a2a; color:#ccc; border:1px solid #444; border-radius:4px; padding:5px 8px; }
+  .muted { color:#777; }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a href="/" {% if active == 'live' %}class="active"{% endif %}>Live</a>
+    <a href="/config" {% if active == 'config' %}class="active"{% endif %}>Config</a>
+    <a href="/recordings" {% if active == 'recordings' %}class="active"{% endif %}>Recordings</a>
+    <a href="/performance" {% if active == 'performance' %}class="active"{% endif %}>Performance</a>
+    <span class="brand">{{ device_name }}</span>
+  </div>
+</nav>
+<div class="content">
+{% block content %}{% endblock %}
+</div>
+{% block script %}{% endblock %}
+</body>
+</html>

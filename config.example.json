@@ -1,0 +1,16 @@
+{
+  "config": {
+    "device_name": "camera-server",
+    "host": "127.0.0.1",
+    "port": 5000,
+    "storage_dir": "recordings",
+    "prune_enabled": true,
+    "min_free_percent": 10.0,
+    "segment_minutes": 5,
+    "yolo_model": "models/yolov8n.onnx",
+    "token": "",
+    "rtsp_enabled": true,
+    "rtsp_port": 8554
+  },
+  "cameras": []
+}

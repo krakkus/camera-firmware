@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Recordings{% endblock %}
+{% block style %}
+  tr.hour-row { background:#20242b; }
+  tr.hour-row td:first-child { color:#6fa8dc; font-weight:bold; }
+  .filter { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="filter" method="get">
+    <label for="camera">Camera</label>
+    <select id="camera" name="camera" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for c in cameras %}<option value="{{ c.id }}" {% if c.id == selected %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+    <span class="muted">{{ recordings|length }}{% if truncated %}+{% endif %} recordings</span>
+  </form>
+  {% if recordings %}
+  <table>
+    <tr>
+      <th style="width:1%;"></th>
+      <th style="width:1%;">Cam</th>
+      <th>Recorded</th>
+      <th style="width:1%; text-align:center;">Motion</th>
+      <th style="width:1%; text-align:center;">Object</th>
+      <th>Size</th>
+      <th></th>
+      <th></th>
+    </tr>
+    {% for r in recordings %}
+    <tr{% if r.hour_end %} class="hour-row"{% endif %}>
+      <td style="width:1%; white-space:nowrap;">{% if r.hour_end %}{{ r.started.strftime('%H') }}:00{% if r.started.date() != today %}<br><small class="muted">{{ r.started.strftime('%m-%d') }}</small>{% endif %}{% endif %}</td>
+      <td style="width:1%; white-space:nowrap;">{{ r.camera_name }}</td>
+      <td>{{ r.started.strftime('%Y-%m-%d %H:%M:%S') }} {{ tz }}{% if r.audio_only %} <span class="muted">&#127908;</span>{% endif %}</td>
+      <td style="width:1%; text-align:center;">{% if r.motion %}&#10003;{% endif %}</td>
+      <td style="width:1%; text-align:center;">{% if r.object %}&#10003;{% endif %}</td>
+      <td style="white-space:nowrap;">{{ r.size_text }}</td>
+      <td><a class="btn" href="#" data-url="{{ r.url }}" data-audio="{{ 1 if r.audio_only else 0 }}">Play</a></td>
+      <td><a class="btn" href="{{ r.url }}?download=1">Download</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if truncated %}<p class="muted">Showing the newest {{ recordings|length }}. <a href="?{% if selected %}camera={{ selected }}&{% endif %}limit={{ limit * 4 }}" style="color:#6fa8dc">Show more</a></p>{% endif %}
+  {% else %}
+  <p class="muted">No recordings yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block script %}
+<script>
+  var openRow = null, openTrigger = null;
+
+  document.addEventListener('click', function (e) {
+    var trigger = e.target.closest('a[data-url]');
+    if (!trigger) return;
+    e.preventDefault();
+    var same = openTrigger === trigger;
+    if (openRow) { openRow.remove(); openRow = openTrigger = null; }
+    if (same) return;                       // Play again on the open row collapses it
+    var tr = document.createElement('tr'), td = document.createElement('td');
+    td.colSpan = 8;
+    var m = document.createElement(trigger.dataset.audio === '1' ? 'audio' : 'video');
+    m.controls = true; m.autoplay = true; m.src = trigger.dataset.url;
+    if (m.tagName === 'VIDEO') { m.style.maxWidth = '480px'; m.style.display = 'block'; }
+    else m.style.width = '100%';
+    td.appendChild(m); tr.appendChild(td);
+    trigger.closest('tr').after(tr);
+    openRow = tr; openTrigger = trigger;
+  });
+</script>
+{% endblock %}

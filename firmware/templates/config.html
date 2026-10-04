@@ -1,0 +1,558 @@
+{% extends "base.html" %}
+{% block title %}Config{% endblock %}
+{% block style %}
+  .card h3 { margin:0 0 4px; font-size:16px; color:#ddd; }
+  .card h4 { margin:16px 0 6px; font-size:13px; color:#6fa8dc; text-transform:uppercase; letter-spacing:.05em; }
+  .head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:8px; }
+  .badge { font-size:12px; color:#e0b341; border:1px solid #5a4a1c; border-radius:10px; padding:1px 8px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px 16px; }
+  .field label { display:block; font-size:12px; color:#999; margin-bottom:3px; }
+  .field input[type=text], .field input[type=number], .field select { width:100%; box-sizing:border-box; }
+  input[type=text], input[type=number] { background:#2a2a2a; color:#ccc; border:1px solid #444; border-radius:4px; padding:5px 8px; font-size:14px; }
+  .field.check { display:flex; align-items:center; gap:8px; padding-top:18px; }
+  .field.check label { margin:0; font-size:14px; color:#ccc; }
+  .field small { color:#777; }
+  .actions { display:flex; gap:10px; align-items:center; margin-top:16px; }
+  .msg { font-size:13px; }
+  .msg.ok { color:#6c6; } .msg.err { color:#e66; }
+  details { margin-top:8px; } summary { cursor:pointer; color:#999; }
+  .cols { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .preview { flex:0 0 360px; max-width:100%; position:sticky; top:56px; }
+  .form { flex:1 1 420px; min-width:0; }
+  .pv-box { position:relative; background:#000; border:1px solid #333; border-radius:6px; overflow:hidden; aspect-ratio:16/9; }
+  .pv-box img { width:100%; height:100%; object-fit:contain; display:block; }
+  .pv-box.off img { opacity:.25; }
+  .pv-box .audio { height:100%; display:flex; align-items:center; justify-content:center; color:#777; }
+  .pv-status { margin-top:6px; font-size:12px; color:#999; min-height:16px; }
+  .pv-status .rec { color:#e55; } .pv-status .mot { color:#e0b341; } .pv-status .bad { color:#e66; }
+  input[type=number] { -moz-appearance:textfield; appearance:textfield; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  .orient { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; border:1px solid #333; border-radius:6px; padding:10px 14px; background:#141414; }
+  .orient .field { min-width:170px; }
+  .orient .field.check { padding-top:0; padding-bottom:6px; min-width:0; }
+  .usage { margin-top:12px; font-size:13px; color:#999; }
+  .usage .meter { position:relative; height:10px; background:#2a2a2a; border-radius:5px; margin:6px 0; overflow:hidden; }
+  .usage .fill { height:100%; background:#4a90d9; }
+  .usage .fill.low { background:#e0a030; }
+  .usage .limit { position:absolute; top:0; bottom:0; width:2px; background:#e55; }
+  .usage .bad { color:#e66; }
+  .ctls { display:flex; flex-direction:column; gap:6px; }
+  .ctls[hidden] { display:none; }
+  .fpsrow { display:grid; grid-template-columns:150px 110px 110px 1fr; gap:6px 10px; align-items:center; font-size:14px; }
+  .fpsrow .ctl-hint { font-size:12px; color:#777; }
+  @media (max-width:560px) { .fpsrow { grid-template-columns:1fr 1fr; } }
+  .ctl { display:grid; grid-template-columns:150px 110px 110px 1fr; gap:6px 10px; align-items:center; font-size:14px; }
+  .ctl .ctl-hint { font-size:12px; color:#777; }
+  .ctl .ctl-live { color:#6fa8dc; margin-left:8px; }
+  .ctl input[type=number], .ctl select { width:100%; box-sizing:border-box; }
+  .ctl-off { grid-column:1 / -1; display:none; align-items:center; gap:10px; font-size:12px; color:#999; padding-left:2px; }
+  .ctl-off input[type=range] { flex:1; max-width:320px; accent-color:#4a90d9; }
+  .ctl-off .ctl-offtxt { min-width:230px; }
+  .legend { font-size:12px; color:#777; margin:0 0 8px; }
+  @media (max-width:560px) { .ctl { grid-template-columns:1fr 1fr; } }
+  .classes { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:2px 12px; max-height:220px; overflow:auto; padding:8px 4px; }
+  .classes label { font-size:13px; color:#ccc; }
+  td.k { font-family:monospace; font-size:12px; color:#888; word-break:break-all; }
+  .dn { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; margin-bottom:6px; }
+  .dn .field { min-width:150px; }
+  .dn input[type=time] { background:#2a2a2a; color:#ccc; border:1px solid #444; border-radius:4px; padding:4px 8px; font-size:14px; color-scheme:dark; }
+  .dn-now { font-size:12px; color:#999; min-height:16px; margin-bottom:8px; }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid #333; margin-bottom:10px; }
+  .tab { background:none; border:1px solid transparent; border-bottom:none; border-radius:6px 6px 0 0; padding:6px 14px; color:#999; cursor:pointer; margin-bottom:-1px; }
+  .tab.on { background:#181818; border-color:#333; color:#ddd; }
+  .tab .live { color:#6c6; font-size:11px; margin-left:6px; }
+{% endblock %}
+
+{% macro field(f, value) %}
+  {% if f.kind == 'bool' %}
+    <div class="field check"><input type="checkbox" id="{{ f.name }}-{{ uid }}" data-s="{{ f.name }}" data-t="bool" {% if value %}checked{% endif %}>
+      <label for="{{ f.name }}-{{ uid }}">{{ f.label }}</label></div>
+  {% elif f.kind == 'select' %}
+    <div class="field"><label>{{ f.label }}{% if f.help %} <small>({{ f.help }})</small>{% endif %}</label>
+      <select data-s="{{ f.name }}" data-t="{{ f.t or 'str' }}">
+        {% for o in f.options %}<option value="{{ o[0] }}" {% if o[0] == value %}selected{% endif %}>{{ o[1] }}</option>{% endfor %}
+      </select></div>
+  {% else %}
+    <div class="field"><label>{{ f.label }}{% if f.help %} <small>({{ f.help }})</small>{% endif %}</label>
+      <input type="number" data-s="{{ f.name }}" data-t="{{ 'float' if f.kind == 'float' else 'int' }}" value="{{ value }}" min="{{ f.min }}" max="{{ f.max }}"{% if f.step %} step="{{ f.step }}"{% endif %}></div>
+  {% endif %}
+{% endmacro %}
+
+{% macro control_set(rows, profile, uid, fps) %}
+  <div class="ctls" data-profile="{{ profile }}"{% if profile == 'dark' %} hidden{% endif %}>
+    <div class="fpsrow">
+      <span>Frame rate</span>
+      <select class="fps-sel" data-fps="{{ fps }}"><option value="{{ fps }}" selected>{{ fps }} fps</option></select>
+      <span></span>
+      <span class="ctl-hint">lower allows longer exposures: brighter at night<span class="ctl-live fps-live"></span></span>
+    </div>
+    {% for r in rows %}
+    <div class="ctl" data-ctl="{{ r.key }}">
+      <span>{{ r.label }}</span>
+      <select class="ctl-mode">{% for m in r.modes %}<option value="{{ m }}" {% if m == r.mode %}selected{% endif %}>{{ m|capitalize }}</option>{% endfor %}</select>
+      <span class="ctl-val">
+        {% if r.kind == 'menu' %}<select class="ctl-value">{% for v, l in r.menu %}<option value="{{ v }}" {% if v == r.value %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        {% else %}<input type="number" class="ctl-value" value="{{ r.value }}" min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}">{% endif %}
+      </span>
+      <span class="ctl-hint">{% if r.kind != 'menu' %}{{ r.min }}&ndash;{{ r.max }}, default {{ r.default }}{% endif %}<span class="ctl-live"></span></span>
+      {% if r.offset %}
+      <div class="ctl-off" data-base="{{ r.offset.base }}" data-per="{{ r.offset.per }}" data-what="{{ r.offset.what }}"
+           title="Shifts what the software aims for: lower values aim lower, higher values aim higher.">
+        <span>Offset</span>
+        <input type="range" class="ctl-offset" min="{{ r.offset.min }}" max="{{ r.offset.max }}" step="5" value="{{ r.offset_value }}">
+        <span class="ctl-offtxt"></span>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="card" id="changed" hidden style="border-color:#5a4a1c">
+  Cameras or devices changed (plugged in or removed). <button type="button" onclick="location.reload()">Reload the page</button>
+  <small class="muted">Unsaved changes on this page are lost.</small>
+</div>
+<div class="card" id="global">
+  <div class="head"><h3>Global</h3></div>
+  <div class="grid2">
+    <div class="field"><label>Device name</label><input type="text" id="g-name" value="{{ device.device_name }}"></div>
+    <div class="field"><label>Token <small>(access key: in the URL, or password for user admin)</small></label>
+      <div style="display:flex; gap:6px"><input type="text" id="g-token" value="{{ device.token }}" spellcheck="false" autocomplete="off" style="flex:1; min-width:0">
+      <button type="button" id="g-token-new">New</button></div></div>
+    <div class="field"><label>Recording file length <small>(all record modes)</small></label>
+      <select id="g-seg">
+        {% if device.segment_minutes not in segment_choices %}<option value="{{ device.segment_minutes }}" selected>{{ device.segment_minutes }} min (set in config file)</option>{% endif %}
+        {% for m in segment_choices %}<option value="{{ m }}" {% if m == device.segment_minutes %}selected{% endif %}>{{ m }} minute{{ 's' if m > 1 }}</option>{% endfor %}
+      </select></div>
+  </div>
+  <h4>Location <small class="muted" style="text-transform:none; letter-spacing:0">for sunrise and sunset</small></h4>
+  <div class="grid2">
+    <div class="field"><label>Latitude</label>
+      <input type="number" id="g-lat" step="0.0001" min="-90" max="90" value="{{ device.latitude if device.latitude is not none else '' }}"
+             placeholder="{{ location.latitude if location else '' }}"></div>
+    <div class="field"><label>Longitude</label>
+      <input type="number" id="g-lon" step="0.0001" min="-180" max="180" value="{{ device.longitude if device.longitude is not none else '' }}"
+             placeholder="{{ location.longitude if location else '' }}"></div>
+    <div class="field"><label>&nbsp;</label><small>{% if device.latitude is not none %}Configured. Empty both to use the time zone again.
+      {% elif location %}Empty: taken from the {{ location.source }}. Enter both for a more exact place.
+      {% else %}Unknown: enter both, or switching by sunset and sunrise stays on the light settings.{% endif %}</small></div>
+  </div>
+  <h4>Storage</h4>
+  <div class="grid2">
+    <div class="field"><label>Recordings location</label>
+      <select id="g-store">
+        {% for c in storage_candidates %}<option value="{{ c.path }}" {% if c.selected %}selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        <option value="__custom">Other path...</option>
+      </select>
+      <input type="text" id="g-store-custom" placeholder="/mnt/disk/recordings" style="margin-top:6px; display:none">
+    </div>
+    <div class="field"><label>Delete oldest recordings below this free space (%)</label>
+      <input type="number" id="g-minfree" min="1" max="50" step="1" value="{{ '%g' % device.min_free_percent }}"></div>
+    <div class="field check"><input type="checkbox" id="g-prune" {% if device.prune_enabled %}checked{% endif %}>
+      <label for="g-prune">Prune automatically</label></div>
+  </div>
+  <div class="usage" id="g-usage">&nbsp;</div>
+  <h4>RTSP streams</h4>
+  <div class="grid2">
+    <div class="field check"><input type="checkbox" id="g-rtsp" {% if device.rtsp_enabled %}checked{% endif %}>
+      <label for="g-rtsp">RTSP on port {{ device.rtsp_port }}</label></div>
+  </div>
+  <div class="actions"><button type="button" class="primary" id="g-save">Save</button><button type="button" class="warn" id="g-prune-now">Prune now</button><span class="msg" id="g-msg"></span></div>
+</div>
+
+{% for item in cameras %}
+{% set c = item.cam %}
+{% set uid = loop.index %}
+<div class="card camera" data-id="{{ c.id }}" data-virtual="{{ 1 if item.virtual else 0 }}">
+  <div class="head">
+    <h3>{{ c.name }} <small class="muted">{{ c.id }}</small></h3>
+    {% if item.virtual %}<span class="badge" title="Not saved yet. Press Save to add it to the configuration.">new device</span>{% endif %}
+  </div>
+
+  <div class="cols">
+  <div class="preview">
+    <div class="pv-box off">
+      {% if c.has_video %}<img alt="preview of {{ c.name }}" data-src="/stream/{{ c.id }}.mjpg">
+      {% else %}<div class="audio">&#127908; audio only</div>{% endif %}
+    </div>
+    <div class="pv-status">&nbsp;</div>
+  </div>
+  <div class="form">
+  <div class="grid2">
+    <div class="field"><label>Name</label><input type="text" data-k="name" value="{{ c.name }}"></div>
+    <div class="field check"><input type="checkbox" id="en-{{ uid }}" data-k="enabled" {% if c.enabled %}checked{% endif %}>
+      <label for="en-{{ uid }}">Enabled</label></div>
+    <div class="field"><label>Video source</label>
+      <select data-k="video">{% for o in item.video_options %}<option value="{{ o.value }}" {% if o.selected %}selected{% endif %}>{{ o.label }}</option>{% endfor %}</select>
+      <input type="text" data-k="source" value="{{ c.source }}" placeholder="rtsp://... or /dev/video0" style="margin-top:6px">
+    </div>
+    <div class="field"><label>Audio source</label>
+      <select data-k="audio">{% for o in item.audio_options %}<option value="{{ o.value }}" {% if o.selected %}selected{% endif %}>{{ o.label }}</option>{% endfor %}</select>
+      <input type="text" data-k="alsa" value="{{ c.audio_source[5:] if c.audio_source.startswith('alsa:') else '' }}" placeholder="plughw:CARD=name,DEV=0" style="margin-top:6px">
+    </div>
+  </div>
+
+  {% for title, fields in groups %}
+  <h4>{{ title }}</h4>
+  <div class="{{ 'orient' if title == 'Orientation' else 'grid2' }}">
+    {% if title == 'Image' %}
+      {% if item.resolutions[0] %}
+      <div class="field"><label>Resolution <small>(frame rate: per set, under Camera controls)</small></label>
+        <select data-res data-rates="{{ item.resolutions[1]|tojson|forceescape }}">{% for o in item.resolutions[0] %}<option value="{{ o.value }}" {% if o.selected %}selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div>
+      {% else %}{% for f in manual_mode %}{{ field(f, item.settings[f.name]) }}{% endfor %}{% endif %}
+    {% endif %}
+    {% for f in fields %}{{ field(f, item.settings[f.name]) }}{% endfor %}
+  </div>
+  {% if title == 'Image' %}
+  <h4>Camera controls</h4>
+  {% if item.controls %}
+  <p class="legend"><b>Camera</b>: the camera's own automatic mode, or its default &middot; <b>Manual</b>: the value you enter &middot; <b>Software</b>: adjusted continuously from the picture</p>
+  <div class="dn">
+    <div class="field"><label>Day/night</label>
+      <select data-s="profile_switch" data-t="str">
+        <option value="off" {% if item.settings.profile_switch == 'off' %}selected{% endif %}>Off: same settings day and night</option>
+        <option value="light" {% if item.settings.profile_switch == 'light' %}selected{% endif %}>By light level</option>
+        <option value="sun" {% if item.settings.profile_switch == 'sun' %}selected{% endif %}>By sunset and sunrise</option>
+      </select></div>
+    <div class="field dn-light"><label>Dark below <small>(light level 0-255)</small></label>
+      <input type="number" data-s="dark_below" data-t="int" min="0" max="254" value="{{ item.settings.dark_below }}"></div>
+    <div class="field dn-light"><label>Light again above</label>
+      <input type="number" data-s="light_above" data-t="int" min="1" max="255" value="{{ item.settings.light_above }}"></div>
+    <div class="field dn-sun"><label>Minutes into the night <small>(-180 to 180)</small></label>
+      <input type="number" data-s="sun_offset" data-t="int" min="-180" max="180" step="5" value="{{ item.settings.sun_offset }}"
+             title="Dark starts this long after sunset and ends this long before sunrise. Negative: before sunset, after sunrise."></div>
+  </div>
+  <div class="dn-now"></div>
+  <div class="tabs">
+    <button type="button" class="tab on" data-tab="light">&#9728; Light</button>
+    <button type="button" class="tab" data-tab="dark">&#9790; Dark</button>
+  </div>
+  {{ control_set(item.controls, 'light', uid, item.settings.fps) }}
+  {{ control_set(item.controls_dark, 'dark', uid, item.settings.fps_dark or item.settings.fps) }}
+  {% else %}
+  <p class="muted" style="margin:0">No adjustable controls: the camera is unplugged, or is not a local USB (V4L2) camera.</p>
+  {% endif %}
+  {% endif %}
+  {% if title == 'Object detection' %}
+  <details>
+    <summary>Objects to detect (<span class="nsel">{{ item.settings.object_classes|length }}</span> selected)</summary>
+    <div class="classes">{% for cl in coco %}<label><input type="checkbox" data-class="{{ cl }}" {% if cl in item.settings.object_classes %}checked{% endif %}> {{ cl }}</label>{% endfor %}</div>
+  </details>
+  {% endif %}
+  {% endfor %}
+
+  <div class="actions">
+    <button type="button" class="primary save">Save</button>
+    {% if not item.virtual %}<button type="button" class="warn reset" title="Image controls, orientation, recording and detection settings go back to the defaults">Restore defaults</button>
+    <button type="button" class="danger remove">Delete</button>{% endif %}
+    <span class="msg"></span>
+  </div>
+  </div>
+  </div>
+</div>
+{% else %}
+<div class="card"><p class="muted" style="margin:0">No cameras or microphones found. Plug one in or add one below.</p></div>
+{% endfor %}
+
+<div class="card" id="add">
+  <div class="head"><h3>Add a camera by URL or device path</h3></div>
+  <div class="grid2">
+    <div class="field"><label>ID <small>(letters, digits, - _)</small></label><input type="text" id="new-id" placeholder="cam2"></div>
+    <div class="field"><label>Name</label><input type="text" id="new-name" placeholder="Garage"></div>
+    <div class="field"><label>Source</label><input type="text" id="new-source" placeholder="rtsp://user:pass@host/stream"></div>
+  </div>
+  <div class="actions"><button type="button" class="primary" id="add-btn">Add</button><span class="msg" id="add-msg"></span></div>
+</div>
+
+<div class="card">
+  <div class="head"><h3>Detected devices</h3></div>
+  <table>
+    <tr><th>Type</th><th>Device</th><th>Port</th><th>ID</th><th>Used by</th></tr>
+    {% for kind in ('video', 'audio') %}{% for d in devices[kind] %}
+    <tr><td>{{ kind }}</td><td>{{ d.name or d.node }}</td><td class="k">{{ d.port }}</td><td class="k">{{ d.device_id }}</td>
+        <td>{{ d.camera or '-' }}</td></tr>
+    {% endfor %}{% endfor %}
+  </table>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  function q(card, sel) { return card.querySelector(sel); }
+
+  // show the free-text inputs only when their option is chosen
+  function offsetText(off) {
+    var s = q(off, '.ctl-offset'), v = Number(s.value);
+    var target = Number(off.dataset.base) + Number(off.dataset.per) * v;
+    q(off, '.ctl-offtxt').textContent = (v > 0 ? '+' : '') + v + ' \u2192 aims for ' + off.dataset.what + ' ' + Math.max(target, 0).toFixed(Number(off.dataset.per) < 0.2 ? 1 : 0);
+  }
+  function syncInputs(card) {
+    card.querySelectorAll('.ctl').forEach(function (row) {
+      var mode = q(row, '.ctl-mode').value;
+      q(row, '.ctl-val').style.visibility = mode === 'manual' ? 'visible' : 'hidden';
+      var off = q(row, '.ctl-off');
+      if (off) { off.style.display = mode === 'software' ? 'flex' : 'none'; offsetText(off); }
+    });
+    var sw = q(card, '[data-s=profile_switch]');
+    if (sw) {
+      card.querySelectorAll('.dn-light').forEach(function (el) { el.style.display = sw.value === 'light' ? '' : 'none'; });
+      card.querySelectorAll('.dn-sun').forEach(function (el) { el.style.display = sw.value === 'sun' ? '' : 'none'; });
+      q(card, '.tabs').style.display = sw.value === 'off' ? 'none' : '';
+      if (sw.value === 'off') showTab(card, 'light');
+    }
+    q(card, '[data-k=source]').style.display = q(card, '[data-k=video]').value === 'src' ? '' : 'none';
+    q(card, '[data-k=alsa]').style.display = q(card, '[data-k=audio]').value === 'alsa' ? '' : 'none';
+  }
+  // frame rate choices follow the chosen resolution; a value not offered there falls back
+  // to the nearest lower one (or the lowest)
+  function fillRates(card) {
+    var res = q(card, '[data-res]');
+    card.querySelectorAll('.fps-sel').forEach(function (sel) {
+      var want = Number(sel.value || sel.dataset.fps);
+      var rates = res ? (JSON.parse(res.dataset.rates)[res.value] || [want]) : [1, 2, 5, 10, 15, 20, 25, 30, 60];
+      if (!res && rates.indexOf(want) < 0) rates = rates.concat([want]).sort(function (a, b) { return b - a; });
+      var pick = rates.indexOf(want) >= 0 ? want : (rates.filter(function (r) { return r < want; })[0] || rates[rates.length - 1]);
+      sel.innerHTML = rates.map(function (r) { return '<option value="' + r + '"' + (r === pick ? ' selected' : '') + '>' + r + ' fps</option>'; }).join('');
+    });
+  }
+  function showTab(card, name) {
+    card.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.dataset.tab === name); });
+    card.querySelectorAll('.ctls').forEach(function (c) { c.hidden = c.dataset.profile !== name; });
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('.tab');
+    if (t) showTab(t.closest('.camera'), t.dataset.tab);
+  });
+  document.querySelectorAll('.camera').forEach(function (card) {
+    fillRates(card);
+    var res = q(card, '[data-res]');
+    if (res) res.addEventListener('change', function () { fillRates(card); });
+    syncInputs(card);
+    var p0 = payload(card);
+    card.dataset.video = JSON.stringify([p0.port, p0.device_id, p0.source]);   // to spot a source change
+    card.addEventListener('input', function (e) {
+      if (e.target.classList.contains('ctl-offset')) offsetText(e.target.closest('.ctl-off'));
+    });
+    card.addEventListener('change', function () {
+      syncInputs(card);
+      var n = q(card, '.nsel');
+      if (n) n.textContent = card.querySelectorAll('[data-class]:checked').length;
+    });
+  });
+
+  function payload(card) {
+    var v = q(card, '[data-k=video]').value, port = '', device_id = '', source = '';
+    if (v.indexOf('dev:') === 0) { var p = v.slice(4).split('|'); port = p[0]; device_id = p[1] || ''; }
+    else if (v === 'src') source = q(card, '[data-k=source]').value.trim();
+    var a = q(card, '[data-k=audio]').value;
+    var audio = a === 'none' ? '' : a === 'alsa' ? 'alsa:' + q(card, '[data-k=alsa]').value.trim() : a;
+    var settings = {};
+    card.querySelectorAll('[data-s]').forEach(function (el) {
+      var t = el.dataset.t;
+      settings[el.dataset.s] = t === 'bool' ? el.checked : (t === 'int' || t === 'float') ? Number(el.value) : el.value;
+    });
+    var res = q(card, '[data-res]');
+    if (res) {
+      var m = /^(\d+)x(\d+)$/.exec(res.value);
+      settings.width = +m[1]; settings.height = +m[2];
+    }
+    var fl = q(card, '.ctls[data-profile=light] .fps-sel'), fd = q(card, '.ctls[data-profile=dark] .fps-sel');
+    if (fl) settings.fps = Number(fl.value);
+    if (fd) settings.fps_dark = Number(fd.value);
+    if (card.querySelectorAll('.ctl').length) {   // no rows (unplugged): leave the saved controls alone
+      [['light', 'controls'], ['dark', 'controls_dark']].forEach(function (pair) {
+        var ctls = {};
+        card.querySelectorAll('.ctls[data-profile=' + pair[0] + '] .ctl').forEach(function (row) {
+          var c = { mode: q(row, '.ctl-mode').value };
+          if (c.mode === 'manual') c.value = Number(q(row, '.ctl-value').value);
+          var off = q(row, '.ctl-offset');
+          if (c.mode === 'software' && off) c.offset = Number(off.value);
+          ctls[row.dataset.ctl] = c;
+        });
+        settings[pair[1]] = ctls;
+      });
+    }
+    settings.object_classes = Array.prototype.map.call(
+      card.querySelectorAll('[data-class]:checked'), function (e) { return e.dataset.class; });
+    return { name: q(card, '[data-k=name]').value, enabled: q(card, '[data-k=enabled]').checked,
+             port: port, device_id: device_id, source: source, audio_source: audio, settings: settings };
+  }
+
+  // --- live preview ---------------------------------------------------------
+  // A stream connects only while its card is on screen, so a page with many
+  // cameras doesn't keep them all streaming.
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      var img = en.target;
+      if (en.isIntersecting) { if (!img.getAttribute('src')) img.src = img.dataset.src + '?t=' + Date.now(); }
+      else img.removeAttribute('src');
+    });
+  }, { rootMargin: '150px' });
+  document.querySelectorAll('.pv-box img').forEach(function (img) { io.observe(img); });
+
+  function reconnect(card) {
+    var img = q(card, '.pv-box img');
+    if (img && img.getAttribute('src')) img.src = img.dataset.src + '?t=' + Date.now();
+  }
+
+  function esc(s) { var d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
+
+  var shownIds = Array.from(document.querySelectorAll('.camera'), function (c) { return c.dataset.id; }).sort().join(',');
+  async function pollStatus() {
+    try {
+      var cams = await (await fetch('/api/cameras')).json();
+      document.getElementById('changed').hidden = cams.map(function (c) { return c.id; }).sort().join(',') === shownIds;
+      cams.forEach(function (c) {
+        var card = document.querySelector('.camera[data-id="' + c.id + '"]');
+        if (!card) return;
+        var s = c.status, box = q(card, '.pv-box'), out = q(card, '.pv-status'), html;
+        box.classList.toggle('off', !s.connected);
+        if (!c.enabled) html = '<span class="bad">disabled</span>';
+        else if (!s.connected) html = '<span class="bad">' + esc(s.problem || (c.has_video ? 'connecting...' : 'no microphone')) + '</span>';
+        else {
+          html = c.has_video ? s.fps + ' fps' : 'microphone ready';
+          if (s.recording) html += ' &middot; <span class="rec">&#9679; recording</span>';
+          if (s.motion) html += ' &middot; <span class="mot">motion</span>';
+        }
+        if (c.audio_source && s.audio && !s.audio.present) html += ' &middot; <span class="bad">microphone not plugged in</span>';
+        out.innerHTML = html;
+        var sw = q(card, '[data-s=profile_switch]');
+        var active = sw && sw.value !== 'off' ? s.profile : 'light';
+        card.querySelectorAll('.tab').forEach(function (t) {
+          var mark = t.querySelector('.live');
+          if (t.dataset.tab === active && !mark) t.insertAdjacentHTML('beforeend', '<span class="live">&#9679; now</span>');
+          if (t.dataset.tab !== active && mark) mark.remove();
+        });
+        var now = q(card, '.dn-now');
+        if (now) now.textContent = !sw || sw.value === 'off' ? '' :
+          'Using the ' + s.profile + ' settings' + (sw.value === 'light' && s.light_level != null ? ' \u00b7 light level now ' + s.light_level : '') +
+          (sw.value === 'sun' && s.sun ? ' \u00b7 ' + (s.sun.error || (s.sun.always ? 'the sun does not ' + (s.sun.always === 'dark' ? 'rise' : 'set') + ' today'
+             : 'today light from ' + s.sun.light_from + ', dark from ' + s.sun.dark_from)) : '') +
+          ' (changes here apply after Save)';
+        card.querySelectorAll('.fps-live').forEach(function (el) {
+          var set = el.closest('.ctls'), asked = Number(q(set, '.fps-sel').value);
+          if (set.dataset.profile !== active || !s.connected) { el.textContent = ''; return; }
+          var got = Math.round(s.fps);
+          el.textContent = ' now ' + got + ' fps' + (Math.abs(got - asked) > 1 ? ', not ' + asked + ': the camera slows down in the dark' : '');
+        });
+        card.querySelectorAll('.ctl').forEach(function (row) {
+          if (row.closest('.ctls').dataset.profile !== active) { q(row, '.ctl-live').textContent = ''; return; }
+          var v = (s.controls || {})[row.dataset.ctl];
+          var dead = (s.controls_ineffective || []).indexOf(row.dataset.ctl) >= 0;
+          q(row, '.ctl-live').textContent = v === undefined ? '' : ' now ' + v + (dead ? ' (no effect on this camera)' : '');
+        });
+      });
+    } catch (e) {}
+    setTimeout(pollStatus, 2000);
+  }
+  pollStatus();
+
+  // --- storage ---------------------------------------------------------------
+  var gStore = document.getElementById('g-store'), gCustom = document.getElementById('g-store-custom');
+  var initialStore = gStore.value;
+  function storagePath() { return gStore.value === '__custom' ? gCustom.value.trim() : gStore.value; }
+  gStore.addEventListener('change', function () { gCustom.style.display = gStore.value === '__custom' ? '' : 'none'; });
+
+  async function loadStorage() {
+    var box = document.getElementById('g-usage');
+    try {
+      var d = await (await fetch('/api/storage')).json();
+      if (d.error) { box.innerHTML = '<span class="bad">' + esc(d.error) + '</span>'; return; }
+      var minFree = Number(document.getElementById('g-minfree').value) || d.min_free_percent;
+      var used = 100 - d.free_percent;
+      var html = '<div>' + esc(d.free_text) + ' free of ' + esc(d.total_text) + ' (' + d.free_percent + '% free) &middot; '
+               + d.recordings + (d.recordings === 1 ? ' recording, ' : ' recordings, ') + esc(d.recordings_text) + '</div>'
+               + '<div class="meter"><div class="fill' + (d.free_percent < minFree ? ' low' : '') + '" style="width:' + used + '%"></div>'
+               + '<div class="limit" title="prune limit" style="left:' + (100 - minFree) + '%"></div></div>';
+      if (!d.writable) html += '<div class="bad">This location is not writable.</div>';
+      if (d.note) html += '<div>' + esc(d.note) + '</div>';
+      var lp = d.last_prune;
+      html += '<div>' + (lp.at ? 'Last prune ' + esc(lp.at) + ': deleted ' + lp.deleted + ' (' + esc(lp.freed_text) + ')' + (lp.note ? ', ' + esc(lp.note) : '') : 'No pruning yet') + '</div>';
+      box.innerHTML = html;
+    } catch (e) {}
+  }
+  loadStorage();
+  setInterval(loadStorage, 10000);
+  document.getElementById('g-minfree').addEventListener('input', loadStorage);
+
+  function say(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+  async function call(method, url, body) {
+    var r = await fetch(url, { method: method, headers: { 'content-type': 'application/json' },
+                               body: body ? JSON.stringify(body) : undefined });
+    if (r.ok) return null;
+    try { return (await r.json()).error || r.statusText; } catch (e) { return r.statusText; }
+  }
+
+  document.addEventListener('click', async function (e) {
+    var card = e.target.closest('.camera');
+    if (card && e.target.classList.contains('save')) {
+      var msg = q(card, '.msg');
+      say(msg, 'Saving...', true);
+      var err = await call('PATCH', '/api/cameras/' + encodeURIComponent(card.dataset.id), payload(card));
+      if (err) return say(msg, err, false);
+      if (card.dataset.virtual === '1') return location.reload();   // now a saved camera
+      var p = payload(card);
+      if (JSON.stringify([p.port, p.device_id, p.source]) !== card.dataset.video) return location.reload();
+      say(msg, 'Saved', true);
+      reconnect(card);                      // picks up new resolution/orientation right away
+    }
+    if (card && e.target.classList.contains('reset')) {
+      if (!confirm('Restore all settings of ' + card.dataset.id + ' to the defaults?\n\nThis switches recording off and sets the camera controls back to the camera\'s own modes. The name and sources are kept.')) return;
+      var rerr = await call('POST', '/api/cameras/' + encodeURIComponent(card.dataset.id) + '/reset');
+      if (rerr) return say(q(card, '.msg'), rerr, false);
+      location.reload();
+    }
+    if (card && e.target.classList.contains('remove')) {
+      if (!confirm('Delete camera ' + card.dataset.id + '?\n\nIts recordings are kept. If its devices are still plugged in, they come back as a new device with default settings.')) return;
+      var err2 = await call('DELETE', '/api/cameras/' + encodeURIComponent(card.dataset.id));
+      if (err2) return say(q(card, '.msg'), err2, false);
+      location.reload();
+    }
+    if (e.target.id === 'g-save') {
+      var gm = document.getElementById('g-msg');
+      say(gm, 'Saving...', true);
+      var store = storagePath();
+      var gerr = await call('PATCH', '/api/device', {
+        device_name: document.getElementById('g-name').value,
+        segment_minutes: Number(document.getElementById('g-seg').value),
+        storage_dir: store,
+        prune_enabled: document.getElementById('g-prune').checked,
+        min_free_percent: Number(document.getElementById('g-minfree').value),
+        rtsp_enabled: document.getElementById('g-rtsp').checked,
+        latitude: document.getElementById('g-lat').value === '' ? null : Number(document.getElementById('g-lat').value),
+        longitude: document.getElementById('g-lon').value === '' ? null : Number(document.getElementById('g-lon').value),
+        token: document.getElementById('g-token').value.trim() });
+      if (gerr) say(gm, gerr, false);
+      else {
+        say(gm, store !== initialStore ? 'Saved. Existing recordings stay in the old location.' : 'Saved', true);
+        initialStore = store;
+        loadStorage();
+      }
+    }
+    if (e.target.id === 'g-token-new') {
+      // 11 URL-safe characters, like a YouTube video id; takes effect on Save
+      var abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+      document.getElementById('g-token').value = Array.from(crypto.getRandomValues(new Uint8Array(11)), function (b) { return abc[b & 63]; }).join('');
+      say(document.getElementById('g-msg'), 'New token: press Save. Viewers with the old one cannot connect again.', true);
+    }
+    if (e.target.id === 'g-prune-now') {
+      var pm = document.getElementById('g-msg');
+      say(pm, 'Pruning...', true);
+      var r = await fetch('/api/storage/prune', { method: 'POST' });
+      var pd = await r.json();
+      say(pm, pd.deleted ? 'Deleted ' + pd.deleted + ' recordings (' + pd.freed_text + ')' : 'Nothing deleted: ' + (pd.note || 'enough free space'), true);
+      loadStorage();
+    }
+    if (e.target.id === 'add-btn') {
+      var m = document.getElementById('add-msg'), id = document.getElementById('new-id').value.trim();
+      var err3 = await call('POST', '/api/cameras', {
+        id: id, name: document.getElementById('new-name').value.trim() || id,
+        source: document.getElementById('new-source').value.trim() });
+      if (err3) return say(m, err3, false);
+      location.reload();
+    }
+  });
+</script>
+{% endblock %}
