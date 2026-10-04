@@ -1,0 +1,21 @@
+# systemd unit for the camera firmware. Change User and the paths (here: user "camera",
+# installed in /home/camera/camera-firmware with a .venv), then see docs/install.md.
+[Unit]
+Description=Camera firmware (recording, live view, RTSP)
+After=network.target
+
+[Service]
+Type=simple
+User=camera
+WorkingDirectory=/home/camera/camera-firmware
+ExecStart=/home/camera/camera-firmware/.venv/bin/python main.py --config config.json
+# SIGINT lets the app finish and close the recording files cleanly before it exits
+KillSignal=SIGINT
+# only the app gets the signal; it closes its recordings, and ffmpeg then ends by itself
+KillMode=mixed
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
