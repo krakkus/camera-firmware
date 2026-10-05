@@ -7,7 +7,6 @@ exposure, white balance, brightness, contrast, saturation, sharpness, gamma, hue
 backlight compensation and power line frequency. The names, ranges and defaults differ
 per camera.
 
-<!-- comparison images per control, made at different times of day, go here -->
 
 ## Modes
 
@@ -79,3 +78,100 @@ uses the Light or the Dark set. The page shows today's switching times.
 
 The Config page shows which set is in use, marked "● now" on its tab. The software loop
 keeps running across a switch; manual and camera modes are applied at once.
+
+## What each control does
+
+The pictures below come from one webcam looking at a street, taken at four times of
+day. Each row is one moment: at night (01:44), in the early morning (07:44), at midday
+(13:44) and at dusk (19:44). The night, morning and dusk rows used the Dark set at 10 fps,
+the midday row the Light set at 30 fps.
+
+Each column is one value of the control, with all other controls left on Camera. "mean" is
+the picture's mean brightness (0-255). In the software columns, the number in brackets is
+the value the software loop settled on for that offset. People and number plates are
+blurred. Other cameras have different ranges and react differently, so treat these as
+examples, not rules.
+
+### Exposure
+
+![Exposure at four times of day](controls/exposure.jpg)
+
+The unit is 0.1 ms, so 1000 is 100 ms. Manual exposure fixes the time but not the gain.
+At night even 100 ms stays black (mean 1), while Camera mode reaches mean 7 because it also
+raises the gain. In daylight it is the most direct control: 50 to 333 moves the mean from 86
+to 182. Software follows its target in daylight. At night, when the longest exposure is not
+enough, it hands over to the camera's own auto exposure, so its columns look like the
+reference.
+
+### White balance
+
+![White balance at four times of day](controls/white_balance.jpg)
+
+Low values (2800 K) make the picture bluer, high values (6500 K) yellower. Brightness
+hardly changes. Under orange street lamps a low value gives more natural colours.
+
+### Brightness
+
+![Brightness at four times of day](controls/brightness.jpg)
+
+At night, brightness does the most. Manual 32 takes the night picture from mean 7 to 41,
+and 64 to 84, but by raising the black level: it looks grey and foggy rather than
+brighter. Software +100 lifts the night to mean 43 and only adds about 13 in daylight. It
+works well in a Dark set; in daylight, manual 64 washes the picture out (mean 184).
+
+### Contrast
+
+![Contrast at four times of day](controls/contrast.jpg)
+
+In daylight, 0 to 100 widens the spread (standard deviation) from 38 to 110. At night, low
+contrast turns the picture into a flat grey (mean 73 at 0), and high contrast pushes
+everything to black. Software leaves contrast at the default in the dark, so its night
+columns match the reference.
+
+### Saturation
+
+![Saturation at four times of day](controls/saturation.jpg)
+
+Colour only: 0 is greyscale, 100 gives strong colours. Brightness stays the same.
+
+### Sharpness
+
+![Sharpness at four times of day](controls/sharpness.jpg)
+
+This camera shows hardly any difference between 0 and 100, day or night.
+
+### Gamma
+
+![Gamma at four times of day](controls/gamma.jpg)
+
+Higher values lift the mid tones and keep black and white where they are. In daylight, 100
+to 500 moves the mean from 124 to 156 and the picture flattens. At night, 500 takes the
+mean from 7 to 13, and Software ends up at the maximum. That helps less than brightness.
+
+### Power line frequency
+
+![Power line frequency at four times of day](controls/power_line_frequency.jpg)
+
+No visible difference here. Set it to your mains frequency (50 Hz in Europe) to avoid
+flicker and rolling bands under fluorescent or LED lighting.
+
+### Backlight compensation
+
+![Backlight compensation at four times of day](controls/backlight_compensation.jpg)
+
+On (1) brightens a daylight picture by about 12-18 (mean) to bring out a dark foreground
+against a bright sky. No effect at night.
+
+### Exposure dynamic framerate
+
+![Exposure dynamic framerate at four times of day](controls/exposure_dynamic_framerate.jpg)
+
+When on, the camera can lower its frame rate to expose longer. No difference here, because
+the frame rate is already set per Light and Dark set.
+
+### Hue
+
+![Hue at four times of day](controls/hue.jpg)
+
+Rotates all colours: at -90 the red car turns purple, at +90 yellow, at ±180 green. Leave it at 0
+unless the camera's colours are off.
