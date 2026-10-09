@@ -56,8 +56,10 @@ class H264Capture:
         self._bytes = w * h * 3
         self._ring = str(ring).replace("%", "%%")
         source = source or ["-f", "v4l2", "-input_format", "h264", "-video_size", f"{width}x{height}",
-                            "-framerate", str(fps), "-fflags", "+discardcorrupt",     # the first buffer after a mode
-                            "-use_wallclock_as_timestamps", "1", "-i", node]
+                            "-framerate", str(fps),
+                            # the camera's own timestamps are steadier than the clock's (USB
+                            # frames arrive in bursts); drop buffers the driver calls corrupt
+                            "-fflags", "+discardcorrupt+genpts", "-i", node]
         cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", *source,
                # the camera's stream, copied as it is
                "-map", "0:v", "-c:v", "copy", "-f", "segment",
