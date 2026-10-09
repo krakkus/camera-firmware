@@ -54,7 +54,7 @@ class CameraWorker:
 
     def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=5)
+        self._thread.join(timeout=20)       # a clip in progress is finished first
 
     # -- consumers (Flask threads) ---------------------------------------
 

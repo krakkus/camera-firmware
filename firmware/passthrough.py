@@ -152,6 +152,7 @@ class RingClips:
         self._lock = threading.Lock()       # one assembly at a time, in order
         self._workers: list[threading.Thread] = []
         self._holds: list[datetime] = []    # starts of clips being joined: their segments stay
+        self._born = datetime.now()         # older segments are leftovers: recover() deals with those
         self._last_tidy = 0.0
 
     @property
@@ -159,11 +160,20 @@ class RingClips:
         return self._clip is not None
 
     def recover(self) -> None:
-        """Make recordings of segments left behind by a crash or a power cut."""
+        """Make recordings of segments left behind by a crash or a power cut. Runs in the
+        background: the camera must not wait for it."""
+        old = [s for s in _segments(self.ring) if s[0] < self._born]
+        if old:
+            t = threading.Thread(target=self._recover, args=(old,), name="recover", daemon=True)
+            t.start()
+            self._workers.append(t)
+
+    def _recover(self, old: list[tuple[datetime, Path]]) -> None:
         group: list[tuple[datetime, Path]] = []
-        for seg in _segments(self.ring) + [(datetime.max, Path())]:
+        for seg in old + [(datetime.max, Path())]:
             if group and (seg[0] - group[-1][0]).total_seconds() > 10 * SEGMENT_SECONDS:
-                self._join(group, group[0][0], "", "recovered", check=True)
+                with self._lock:
+                    self._join(group, group[0][0], "", "recovered", check=True)
                 group = []
             group.append(seg)
 
@@ -187,29 +197,29 @@ class RingClips:
         """End the current clip and wait until every recording is finished."""
         clip, self._clip = self._clip, None
         if clip is not None:
-            self._finish(clip)
+            self._finish(clip, wait=False)          # the capture has stopped: nothing newer will come
         for t in self._workers:
-            t.join(timeout=FINALIZE_WAIT + 30)
+            t.join(timeout=60)
         self._workers = []
 
     # -- internals -----------------------------------------------------
 
-    def _finish(self, clip: _Clip) -> None:
+    def _finish(self, clip: _Clip, wait: bool = True) -> None:
         end = datetime.now()
         self._holds.append(clip.start)
-        t = threading.Thread(target=self._assemble, args=(clip, end), name="clip", daemon=True)
+        t = threading.Thread(target=self._assemble, args=(clip, end, wait), name="clip", daemon=True)
         t.start()
         self._workers = [w for w in self._workers if w.is_alive()] + [t]
 
-    def _assemble(self, clip: _Clip, end: datetime) -> None:
+    def _assemble(self, clip: _Clip, end: datetime, wait: bool) -> None:
         try:
-            self._assemble_locked(clip, end)
+            self._assemble_locked(clip, end, wait)
         finally:
             self._holds.remove(clip.start)
 
-    def _assemble_locked(self, clip: _Clip, end: datetime) -> None:
+    def _assemble_locked(self, clip: _Clip, end: datetime, wait: bool) -> None:
         with self._lock:
-            deadline = time.monotonic() + FINALIZE_WAIT
+            deadline = time.monotonic() + (FINALIZE_WAIT if wait else 0)
             while time.monotonic() < deadline:      # the segment holding `end` closes when the next opens
                 segs = _segments(self.ring)
                 if segs and segs[-1][0] > end:
@@ -283,13 +293,13 @@ class RingClips:
 
     @staticmethod
     def _readable(path: Path) -> bool:
+        """Looks like MPEG-TS: every 188-byte packet in the first few starts with 0x47."""
         try:
-            r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                                "stream=codec_name", "-of", "csv=p=0", str(path)],
-                               capture_output=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
+            with open(path, "rb") as f:
+                head = f.read(188 * 4)
+        except OSError:
             return False
-        return r.returncode == 0 and bool(r.stdout.strip())
+        return len(head) >= 188 and all(head[i] == 0x47 for i in range(0, min(len(head), 188 * 4), 188))
 
     def _tidy(self, pre_roll: float) -> None:
         """Drop ring segments nothing needs any more: older than the pre-roll plus a margin,
@@ -299,5 +309,5 @@ class RingClips:
         if wanted:
             horizon = min(horizon, min(wanted) - timedelta(seconds=4 * SEGMENT_SECONDS))
         for start, p in _segments(self.ring)[:-2]:   # never the newest, still being written
-            if start < horizon:
+            if self._born <= start < horizon:
                 p.unlink(missing_ok=True)
