@@ -14,7 +14,6 @@
 Optional:
 
 - `nvidia-smi`, or `intel_gpu_top` with a sudo rule (below), for the GPU chart
-- a YOLOv8 ONNX model for object detection, see [models/README.md](../models/README.md)
 
 ## Install
 
@@ -73,13 +72,6 @@ echo "$USER ALL=(root) NOPASSWD: /usr/bin/intel_gpu_top" | sudo tee /etc/sudoers
 ```
 
 AMD cards are not sampled; the chart then says so.
-
-## Object detection (optional)
-
-The "Object detect" record mode needs a YOLOv8 model at `models/yolov8n.onnx`. It is not
-included (a large file, and the Ultralytics weights are AGPL-3.0 licensed);
-[models/README.md](../models/README.md) shows how to make one. Without it, the API refuses
-that mode, and a camera already set to it uses motion detection instead.
 
 ## Update
 

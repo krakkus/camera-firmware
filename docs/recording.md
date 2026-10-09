@@ -9,7 +9,7 @@
 | `off` | No | nothing |
 | `continuous` | Always | all the time |
 | `motion` | Motion detect | while the picture changes |
-| `object` | Object detect | while a chosen kind of object is seen |
+| `object` | Person detect | while a person is seen |
 
 Motion and object modes need video. An audio-only camera records `off` or `continuous`.
 
@@ -20,13 +20,12 @@ counts as changed when it differs by more than `motion_threshold` (1-255, defaul
 there is motion when at least `motion_min_area` pixels changed (default 500). Lower values
 are more sensitive: more recordings, more false alarms from leaves, rain and headlights.
 
-### Objects
+### People
 
-A YOLOv8 model looks at the frames in a separate thread, about every 0.4 seconds. A clip is
-recorded while any of the chosen `object_classes` (the 80 COCO names: person, car,
-bicycle, cat, dog, ...) is seen with at least `object_confidence` (0.05-0.95, default 0.5).
-It runs on the CPU. The model is not included, see [Installation](install.md#object-detection-optional);
-without it, the API refuses this mode.
+OpenCV's built-in HOG people detector looks at the frames in a separate thread, about every
+0.4 seconds, and a clip is recorded while a person is seen. `object_confidence` (0.05-0.95,
+default 0.5; the page calls it "Strictness") is the score a detection must reach: higher
+means fewer false alarms and more misses. It runs on the CPU and needs no model file.
 
 ### Before and after
 

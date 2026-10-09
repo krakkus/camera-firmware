@@ -23,10 +23,6 @@ nohup.out
 /recordings/
 /storage/
 
-# Model weights: large binaries, and YOLOv8 weights are AGPL-3.0 licensed.
-# See models/README.md for how to produce them.
-/models/*
-!/models/README.md
 
 # Editors, OS, tooling
 .idea/

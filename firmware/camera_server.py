@@ -32,7 +32,6 @@ class DeviceConfig:
     # maximum length of one recording file, in every record mode. The web UI offers
     # SEGMENT_CHOICES; the config file may hold any positive number (handy for testing).
     segment_minutes: float = 5
-    yolo_model: str = "models/yolov8n.onnx"     # YOLOv8-format ONNX, for object detection
     # The device's access token, the only credential: it goes in the URL, or is the
     # password of user "admin"/"root". Used by RTSP. Generated on first start if empty.
     token: str = ""
@@ -118,6 +117,7 @@ class CameraServer:
     def from_dict(cls, data: dict[str, Any],
                   config_path: str | os.PathLike | None = None) -> CameraServer:
         cfg = dict(data.get("config", {}))
+        cfg.pop("yolo_model", None)         # the YOLO detector was replaced by OpenCV's own
         cfg.pop("ignored_devices", None)    # a short-lived setting that was removed again
         cfg.pop("timezone", None)           # never used: times follow the system time zone
         if "rtsp_token" in cfg:             # renamed: the token is not only for RTSP

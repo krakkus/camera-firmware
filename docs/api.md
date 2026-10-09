@@ -54,10 +54,10 @@ T=your-token
 # all cameras
 curl -u admin:$T http://camera1:5000/api/cameras
 
-# record when a person or a cat is seen
+# record when a person is seen
 curl -u admin:$T -X PATCH http://camera1:5000/api/cameras/cam0 \
   -H 'content-type: application/json' \
-  -d '{"settings": {"record_mode": "object", "object_classes": ["person", "cat"]}}'
+  -d '{"settings": {"record_mode": "object", "object_confidence": 0.6}}'
 
 # night set: 10 fps, brightness by software aiming higher, switched by the sun
 curl -u admin:$T -X PATCH http://camera1:5000/api/cameras/cam0 \

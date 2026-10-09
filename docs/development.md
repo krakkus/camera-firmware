@@ -18,7 +18,7 @@ firmware/
   daynight.py           which control set applies: light level, or sunset and sunrise
   devices.py            finding cameras, microphones and capture modes
   audio.py              microphone capture, shared between cameras
-  objects.py, coco.py   YOLO object detection and the class names
+  objects.py            person detection (OpenCV HOG)
   storage.py            storage location, usage, pruning
   metrics.py            performance sampler
   auth.py               the token: URL, user/password, session cookie
@@ -27,7 +27,6 @@ firmware/
   web.py, templates/    Flask app, pages and API
   static/vendor/        Chart.js, its zoom plugin and Hammer.js, served locally
 deploy/                 systemd unit
-models/README.md        how to make the object-detection model
 ```
 
 ## How it fits together

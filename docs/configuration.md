@@ -34,7 +34,6 @@ Settings from older versions are converted when loaded.
 | `prune_enabled` | `true` | Delete the oldest recordings when the disk gets full |
 | `min_free_percent` | `10` | Free space (1-50 %) to keep when pruning |
 | `latitude`, `longitude` | empty | Location for sunrise and sunset; empty: a city in the system time zone |
-| `yolo_model` | `models/yolov8n.onnx` | YOLOv8 ONNX model for object detection |
 
 ## Per camera (`cameras[]`)
 
@@ -85,7 +84,6 @@ values are checked against the camera's range when saved. See
 | `post_roll_seconds` | `5` | Motion/object: seconds recorded after the last trigger (0-300) |
 | `motion_threshold` | `25` | Per-pixel difference that counts as change (1-255) |
 | `motion_min_area` | `500` | Changed pixels, at 320 px wide, that count as motion |
-| `object_classes` | `["person"]` | COCO class names to record on |
 | `object_confidence` | `0.5` | Minimum detection confidence (0.05-0.95) |
 
 See [Recording](recording.md).

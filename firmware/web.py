@@ -11,7 +11,6 @@ from flask import (Flask, Response, abort, jsonify, redirect, render_template, r
 
 from . import auth, tls
 from .camera import Camera
-from .coco import COCO_CLASSES
 from .daynight import location
 from .camera_server import SEGMENT_CHOICES
 from .config_form import (GROUPS, MANUAL_MODE, audio_options, control_rows, resolution_options,
@@ -161,7 +160,7 @@ def create_app(service: Service) -> Flask:
         cameras = service.cameras()
         return render_template(
             "config.html", active="config", groups=GROUPS, devices=devices,
-            manual_mode=MANUAL_MODE, coco=COCO_CLASSES, segment_choices=SEGMENT_CHOICES,
+            manual_mode=MANUAL_MODE, segment_choices=SEGMENT_CHOICES,
             device=service.server.config, storage_candidates=service.storage.candidates(),
             location=location(service.server.config), https=https_info(),
             cameras=[dict(cam=c, settings=asdict(c.settings), virtual=service.is_virtual(c.id),

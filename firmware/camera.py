@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
-from .coco import COCO_CLASSES
 
 MODES = ("camera", "manual", "software")      # per hardware control, see controls.py
 PROFILE_SWITCHES = ("off", "light", "sun")     # see CameraSettings.profile_switch
@@ -48,8 +47,7 @@ class CameraSettings:
     pre_roll_seconds: int = 3          # motion/object: footage kept from before the trigger
     post_roll_seconds: int = 5         # motion/object: keep recording this long afterwards
 
-    # object detection (record_mode == "object"): COCO class names, see coco.py
-    object_classes: list[str] = field(default_factory=lambda: ["person"])
+    # person detection (record_mode == "object"): HOG score a person must reach
     object_confidence: float = 0.5
 
     record_crf: int = 23               # H.264 quality, 0-51, lower = better/bigger
@@ -61,11 +59,6 @@ class CameraSettings:
     def validate(self) -> None:
         if self.record_mode not in RECORD_MODES:
             raise ValueError(f"record_mode must be one of {', '.join(RECORD_MODES)}")
-        unknown = [c for c in self.object_classes if c not in COCO_CLASSES]
-        if unknown:
-            raise ValueError(f"unknown object classes: {', '.join(unknown)}")
-        if self.record_mode == "object" and not self.object_classes:
-            raise ValueError("object recording needs at least one object class")
         if not 0.05 <= self.object_confidence <= 0.95:
             raise ValueError("object_confidence must be 0.05-0.95")
         if not 0 <= self.record_crf <= 51:
@@ -171,6 +164,7 @@ class Camera:
         settings = dict(data.get("settings", {}))
         # older configs kept audio in the settings
         settings.pop("segment_seconds", None)     # now a global setting
+        settings.pop("object_classes", None)      # detection is people only now
         settings.pop("dark_from", None)           # fixed clock times, replaced by the sun
         settings.pop("dark_until", None)
         if settings.get("profile_switch") == "clock":

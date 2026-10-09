@@ -20,7 +20,7 @@ from .camera_server import TOKEN_PATTERN, SEGMENT_CHOICES, CameraServer, DeviceC
 from .devices import (AudioDevice, VideoDevice, audio_matches, list_audio_devices,
                       list_modes, list_video_devices, node_for, usb_device)
 from .metrics import Metrics
-from .objects import YoloDetector
+from .objects import PersonDetector
 from .rtsp import RtspServer, new_token
 from .storage import Storage
 from .worker import CameraWorker
@@ -51,7 +51,7 @@ class Service:
         self.storage = Storage(server.config)
         self.metrics = Metrics(metrics_path, lambda: self.storage.root, metrics_interval)
         self.hub = AudioHub()
-        self.detector = YoloDetector(server.config.yolo_model)
+        self.detector = PersonDetector()
         self._workers: dict[str, CameraWorker] = {}
         self.rtsp: RtspServer | None = None
         self._virtual: dict[str, Camera] = {}
@@ -195,12 +195,7 @@ class Service:
             self._persist()
             return cam
 
-    def _check_object_mode(self, record_mode) -> None:
-        if record_mode == "object" and not self.detector.available:
-            raise ValueError(f"object detection model not found: {self.detector.path}")
-
     def add_camera(self, camera: Camera) -> None:
-        self._check_object_mode(camera.settings.record_mode)
         with self._lock:
             self._adopt(camera)
 
@@ -217,7 +212,6 @@ class Service:
 
     def update_camera(self, camera_id: str, name=None, source=None, enabled=None,
                       port=None, device_id=None, audio_source=None, **settings) -> Camera:
-        self._check_object_mode(settings.get("record_mode"))
         with self._lock:
             cam = self.camera(camera_id)
             for key in ("controls", "controls_dark"):

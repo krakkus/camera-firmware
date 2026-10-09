@@ -19,7 +19,7 @@ import numpy as np
 from .audio import RATE, SAMPLE_BYTES
 from .camera import CameraSettings
 from .camera_server import DeviceConfig
-from .objects import ObjectWatcher, YoloDetector
+from .objects import ObjectWatcher, PersonDetector
 
 log = logging.getLogger(__name__)
 
@@ -200,14 +200,12 @@ class Recorder:
     """
 
     def __init__(self, camera_id: str, get_settings: Callable[[], CameraSettings],
-                 config: DeviceConfig, detector: YoloDetector) -> None:
+                 config: DeviceConfig, detector: PersonDetector) -> None:
         self._camera_id = camera_id
         self._config = config               # global: storage location, maximum file length
         self.error: str | None = None       # why recording can't start (e.g. storage not writable)
         self._error_logged = 0.0
         self._watcher = ObjectWatcher(detector)
-        self._detector_available = lambda: detector.available
-        self._warned_model = False
         self.objects: list[str] = []        # classes detected right now (object mode)
         self._get_settings = get_settings   # audio-only recording has no frames to carry them
         self._audio_only = False
@@ -315,18 +313,13 @@ class Recorder:
 
         # motion / object mode: something has to trigger the recording
         self._audio_keep = max(1.0, float(s.pre_roll_seconds))
-        if mode == "object" and not self._detector_available():
-            if not self._warned_model:
-                log.warning("object detection model is missing; using motion detection instead")
-                self._warned_model = True
-            mode = "motion"
         if mode == "motion":
             self.motion = self._detector.detect(frame, s)
             self.objects = []
             trigger, suffix = self.motion, "_motion"
         else:
             self.motion = False
-            self._watcher.submit(frame, s.object_classes, s.object_confidence)
+            self._watcher.submit(frame, s.object_confidence)
             self.objects = self._watcher.current()
             trigger, suffix = bool(self.objects), "_object"
         if trigger:

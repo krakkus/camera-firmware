@@ -19,7 +19,7 @@ GROUPS: list[tuple[str, list[dict]]] = [
     ("Recording", [
         dict(name="record_mode", label="Record", kind="select",
              options=[("off", "No"), ("motion", "Motion detect"),
-                      ("object", "Object detect"), ("continuous", "Always")],
+                      ("object", "Person detect"), ("continuous", "Always")],
              help="motion and object need a video source"),
         dict(name="record_crf", label="H.264 quality (CRF)", kind="int", min=0, max=51,
              help="lower = better and bigger"),
@@ -32,9 +32,10 @@ GROUPS: list[tuple[str, list[dict]]] = [
         dict(name="motion_threshold", label="Pixel threshold", kind="int", min=1, max=255),
         dict(name="motion_min_area", label="Minimum changed area", kind="int", min=1, max=1000000),
     ]),
-    ("Object detection", [
-        dict(name="object_confidence", label="Minimum confidence", kind="float",
-             min=0.05, max=0.95, step=0.05),
+    ("Person detection", [
+        dict(name="object_confidence", label="Strictness", kind="float",
+             min=0.05, max=0.95, step=0.05,
+             help="higher = fewer false alarms, more misses"),
     ]),
 ]
 

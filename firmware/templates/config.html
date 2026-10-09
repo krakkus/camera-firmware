@@ -50,8 +50,6 @@
   .ctl-off .ctl-offtxt { min-width:230px; }
   .legend { font-size:12px; color:#777; margin:0 0 8px; }
   @media (max-width:560px) { .ctl { grid-template-columns:1fr 1fr; } }
-  .classes { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:2px 12px; max-height:220px; overflow:auto; padding:8px 4px; }
-  .classes label { font-size:13px; color:#ccc; }
   td.k { font-family:monospace; font-size:12px; color:#888; word-break:break-all; }
   .dn { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; margin-bottom:6px; }
   .dn .field { min-width:150px; }
@@ -243,12 +241,6 @@
   <p class="muted" style="margin:0">No adjustable controls: the camera is unplugged, or is not a local USB (V4L2) camera.</p>
   {% endif %}
   {% endif %}
-  {% if title == 'Object detection' %}
-  <details>
-    <summary>Objects to detect (<span class="nsel">{{ item.settings.object_classes|length }}</span> selected)</summary>
-    <div class="classes">{% for cl in coco %}<label><input type="checkbox" data-class="{{ cl }}" {% if cl in item.settings.object_classes %}checked{% endif %}> {{ cl }}</label>{% endfor %}</div>
-  </details>
-  {% endif %}
   {% endfor %}
 
   <div class="actions">
@@ -345,8 +337,6 @@
     });
     card.addEventListener('change', function () {
       syncInputs(card);
-      var n = q(card, '.nsel');
-      if (n) n.textContent = card.querySelectorAll('[data-class]:checked').length;
     });
   });
 
@@ -382,8 +372,6 @@
         settings[pair[1]] = ctls;
       });
     }
-    settings.object_classes = Array.prototype.map.call(
-      card.querySelectorAll('[data-class]:checked'), function (e) { return e.dataset.class; });
     return { name: q(card, '[data-k=name]').value, enabled: q(card, '[data-k=enabled]').checked,
              port: port, device_id: device_id, source: source, audio_source: audio, settings: settings };
   }

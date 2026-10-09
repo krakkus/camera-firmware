@@ -15,7 +15,7 @@ from .audio import AudioHub
 from .camera_server import DeviceConfig
 from .controls import ControlManager
 from .daynight import DayNight
-from .objects import YoloDetector
+from .objects import PersonDetector
 from .camera import Camera
 from .devices import find_device, pick_fourcc, resolve_alsa
 from .recorder import Recorder
@@ -28,7 +28,7 @@ FPS_WARMUP_FRAMES = 15
 
 class CameraWorker:
     def __init__(self, camera: Camera, hub: AudioHub, config: DeviceConfig,
-                 detector: YoloDetector) -> None:
+                 detector: PersonDetector) -> None:
         self.camera = camera
         self.recorder = Recorder(camera.id, lambda: camera.settings, config, detector)
         self._hub = hub
