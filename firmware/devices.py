@@ -154,7 +154,7 @@ def usb_device(port: str) -> str:
 
 USABLE_FORMATS = ("MJPG", "YUYV")      # what OpenCV's V4L2 capture handles; MJPG is faster
 _MODES_TTL = 30.0
-_modes_cache: dict[tuple, tuple[float, list[tuple[int, int, int, str]]]] = {}
+_modes_cache: dict[tuple, tuple[float, list[tuple[int, int, int, str]]]] = {}   # every format
 
 
 def node_identity(node: str) -> tuple:
@@ -168,8 +168,22 @@ def node_identity(node: str) -> tuple:
 
 
 def list_modes(node: str) -> list[tuple[int, int, int, str]]:
-    """(width, height, fps, fourcc) the device offers, via v4l2-ctl. Empty if unknown
-    (not a V4L2 node, or v4l2-ctl missing)."""
+    """(width, height, fps, fourcc) the device offers that OpenCV can capture, via v4l2-ctl.
+    Empty if unknown (not a V4L2 node, or v4l2-ctl missing)."""
+    return [m for m in _all_modes(node) if m[3] in USABLE_FORMATS]
+
+
+def h264_modes(node: str) -> list[str]:
+    """The "WxH@fps" modes the camera delivers H.264 in (for the Config page)."""
+    return [f"{w}x{h}@{r}" for w, h, r, f in _all_modes(node) if f == "H264"]
+
+
+def has_h264(node: str, width: int, height: int, fps: int) -> bool:
+    """Does the camera deliver H.264 itself in exactly this mode (for the copy mode)?"""
+    return (width, height, fps, "H264") in _all_modes(node)
+
+
+def _all_modes(node: str) -> list[tuple[int, int, int, str]]:
     now = time.monotonic()
     key = node_identity(node)
     cached = _modes_cache.get(key)
@@ -191,7 +205,7 @@ def list_modes(node: str) -> list[tuple[int, int, int, str]]:
         if m:
             size = (int(m.group(1)), int(m.group(2)))
         m = re.match(r"Interval: Discrete [\d.]+s \(([\d.]+) fps\)", line)
-        if m and size and fourcc in USABLE_FORMATS:
+        if m and size and fourcc in (*USABLE_FORMATS, "H264"):
             modes.append((*size, round(float(m.group(1))), fourcc))
     modes.sort(key=lambda m: (-m[0] * m[1], -m[2], m[3]))
     _modes_cache[key] = (now, modes)

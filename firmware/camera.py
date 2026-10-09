@@ -8,6 +8,7 @@ from typing import Any
 MODES = ("camera", "manual", "software")      # per hardware control, see controls.py
 PROFILE_SWITCHES = ("off", "light", "sun")     # see CameraSettings.profile_switch
 RECORD_MODES = ("off", "motion", "object", "continuous")
+RECORD_CODECS = ("x264", "copy")      # see passthrough.py
 NEEDS_VIDEO = ("motion", "object")
 
 
@@ -51,6 +52,11 @@ class CameraSettings:
     object_confidence: float = 0.5
 
     record_crf: int = 23               # H.264 quality, 0-51, lower = better/bigger
+    # "x264": the firmware encodes the frames it captures (any camera).
+    # "copy": record the camera's own H.264 as it is (needs a camera that offers H.264 in
+    # the chosen mode; falls back to "x264" if it does not). Light on the CPU, but see
+    # passthrough.py: no audio, rotation or flips, and record_crf does not apply.
+    record_codec: str = "x264"
 
     # motion detection (runs whenever record_mode == "motion")
     motion_threshold: int = 25         # per-pixel difference, 1-255
@@ -61,6 +67,8 @@ class CameraSettings:
             raise ValueError(f"record_mode must be one of {', '.join(RECORD_MODES)}")
         if not 0.05 <= self.object_confidence <= 0.95:
             raise ValueError("object_confidence must be 0.05-0.95")
+        if self.record_codec not in RECORD_CODECS:
+            raise ValueError(f"record_codec must be one of {', '.join(RECORD_CODECS)}")
         if not 0 <= self.record_crf <= 51:
             raise ValueError("record_crf must be 0-51")
         if not 0 <= self.pre_roll_seconds <= 30:
@@ -79,6 +87,9 @@ class CameraSettings:
             raise ValueError("fps_dark must be 1-120 (or 0: the same as fps)")
         if self.rotation not in (0, 90, 180, 270):
             raise ValueError("rotation must be 0, 90, 180 or 270")
+        if self.record_codec == "copy" and (self.rotation or self.flip_horizontal
+                                            or self.flip_vertical):
+            raise ValueError("copy recording cannot rotate or flip: use x264 for that")
         _check_controls("controls", self.controls)
         _check_controls("controls_dark", self.controls_dark)
         if self.profile_switch not in PROFILE_SWITCHES:

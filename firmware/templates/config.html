@@ -171,7 +171,7 @@
 {% for item in cameras %}
 {% set c = item.cam %}
 {% set uid = loop.index %}
-<div class="card camera" data-id="{{ c.id }}" data-virtual="{{ 1 if item.virtual else 0 }}">
+<div class="card camera" data-id="{{ c.id }}" data-virtual="{{ 1 if item.virtual else 0 }}" data-h264="{{ item.h264|tojson|forceescape }}" data-size="{{ item.settings.width }}x{{ item.settings.height }}" data-fps="{{ item.settings.fps }}">
   <div class="head">
     <h3>{{ c.name }} <small class="muted">{{ c.id }}</small></h3>
     {% if item.virtual %}<span class="badge" title="Not saved yet. Press Save to add it to the configuration.">new device</span>{% endif %}
@@ -288,6 +288,29 @@
     var target = Number(off.dataset.base) + Number(off.dataset.per) * v;
     q(off, '.ctl-offtxt').textContent = (v > 0 ? '+' : '') + v + ' \u2192 aims for ' + off.dataset.what + ' ' + Math.max(target, 0).toFixed(Number(off.dataset.per) < 0.2 ? 1 : 0);
   }
+  // Encoding: "hardware" (copy the camera's own H.264) needs an H.264 mode at the chosen
+  // resolution and frame rate, and cannot rotate, flip or set the quality
+  function syncCodec(card) {
+    var sel = q(card, '[data-s=record_codec]');
+    if (!sel) return;
+    var res = q(card, '[data-res]'), fps = q(card, '.ctls[data-profile=light] .fps-sel');
+    var modes = JSON.parse(card.dataset.h264 || '[]');
+    // without the dropdowns (no controls, unplugged) the saved mode counts
+    var ok = modes.indexOf((res ? res.value : card.dataset.size) + '@' + (fps ? fps.value : card.dataset.fps)) >= 0;
+    var opt = q(sel, 'option[value=copy]');
+    var hw = sel.value === 'copy';
+    opt.disabled = !ok && !hw;
+    opt.textContent = ok ? "Hardware (camera's own H.264)"
+      : hw ? "Hardware (no H.264 at this resolution/rate: software is used)"
+      : modes.length ? "Hardware (not at this resolution/rate)" : "Hardware (this camera has no H.264)";
+    ['rotation', 'flip_horizontal', 'flip_vertical', 'record_crf'].forEach(function (n) {
+      var el = q(card, '[data-s=' + n + ']');
+      if (!el) return;
+      if (hw && n !== 'record_crf') { if (el.type === 'checkbox') el.checked = false; else el.value = '0'; }
+      el.disabled = hw;
+    });
+  }
+
   function syncInputs(card) {
     card.querySelectorAll('.ctl').forEach(function (row) {
       var mode = q(row, '.ctl-mode').value;
@@ -302,6 +325,7 @@
       q(card, '.tabs').style.display = sw.value === 'off' ? 'none' : '';
       if (sw.value === 'off') showTab(card, 'light');
     }
+    syncCodec(card);
     q(card, '[data-k=source]').style.display = q(card, '[data-k=video]').value === 'src' ? '' : 'none';
     q(card, '[data-k=alsa]').style.display = q(card, '[data-k=audio]').value === 'alsa' ? '' : 'none';
   }

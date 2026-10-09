@@ -166,6 +166,7 @@ def create_app(service: Service) -> Flask:
             cameras=[dict(cam=c, settings=asdict(c.settings), virtual=service.is_virtual(c.id),
                           video_options=video_options(c, devices),
                           resolutions=resolution_options(c, service.modes_for(c)),
+                          h264=service.h264_modes_for(c),
                           controls=control_rows(c, service.logical_controls(c)),
                           controls_dark=control_rows(c, service.logical_controls(c), dark=True),
                           audio_options=audio_options(c, devices)) for c in cameras])

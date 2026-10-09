@@ -79,7 +79,8 @@ values are checked against the camera's range when saved. See
 | Setting | Default | Meaning |
 |---|---|---|
 | `record_mode` | `off` | `off`, `continuous`, `motion` or `object` |
-| `record_crf` | `23` | H.264 quality, 0-51: lower is better and bigger. Also used for RTSP |
+| `record_codec` | `x264` | `x264`: the firmware encodes the frames (software). `copy`: record the camera's own H.264 as it is (hardware), see [Recording](recording.md#hardware-copy-mode) |
+| `record_crf` | `23` | H.264 quality, 0-51: lower is better and bigger. Software encoding only; also used for RTSP |
 | `pre_roll_seconds` | `3` | Motion/object: seconds kept from before the trigger (0-30) |
 | `post_roll_seconds` | `5` | Motion/object: seconds recorded after the last trigger (0-300) |
 | `motion_threshold` | `25` | Per-pixel difference that counts as change (1-255) |

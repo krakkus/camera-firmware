@@ -18,7 +18,7 @@ from . import controls
 from .camera import Camera
 from .camera_server import TOKEN_PATTERN, SEGMENT_CHOICES, CameraServer, DeviceConfig
 from .devices import (AudioDevice, VideoDevice, audio_matches, list_audio_devices,
-                      list_modes, list_video_devices, node_for, usb_device)
+                      h264_modes, list_modes, list_video_devices, node_for, usb_device)
 from .metrics import Metrics
 from .objects import PersonDetector
 from .rtsp import RtspServer, new_token
@@ -126,6 +126,11 @@ class Service:
         """Capture modes (width, height, fps, fourcc) the camera's device offers now."""
         node = node_for(cam.port, cam.device_id, cam.source)
         return list_modes(node) if node else []
+
+    def h264_modes_for(self, cam: Camera) -> list[str]:
+        """"WxH@fps" modes the camera's device delivers as H.264 now (empty: none / unplugged)."""
+        node = node_for(cam.port, cam.device_id, cam.source)
+        return h264_modes(node) if node else []
 
     def logical_controls(self, cam: Camera) -> list[controls.Logical]:
         """Hardware image controls the camera's device offers now (empty: none / unplugged)."""

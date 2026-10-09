@@ -17,7 +17,8 @@ from .controls import ControlManager
 from .daynight import DayNight
 from .objects import PersonDetector
 from .camera import Camera
-from .devices import find_device, pick_fourcc, resolve_alsa
+from .devices import find_device, has_h264, pick_fourcc, resolve_alsa
+from .passthrough import H264Capture
 from .recorder import Recorder
 
 log = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class CameraWorker:
         self.device: str | None = None      # node currently open
         self.problem: str | None = None     # why not connected, if known
         self.measured_fps = 0.0
+        self.codec = "x264"                 # how recordings are made now: "x264" or "copy"
         self.target_fps = camera.settings.fps   # requested from the camera now (light or dark set)
         self._cond = threading.Condition()
         self._jpeg: bytes | None = None
@@ -91,6 +93,7 @@ class CameraWorker:
             "problem": self.problem,
             "fps": round(self.measured_fps, 1),
             "recording": self.recorder.recording,
+            "codec": self.codec,
             "motion": self.recorder.motion,
             "objects": self.recorder.objects,
             "storage_error": self.recorder.error,
@@ -125,11 +128,39 @@ class CameraWorker:
             return dev.node if dev else None
         return cam.source
 
-    def _open(self) -> cv2.VideoCapture | None:
+    def _open_copy(self, src: str) -> H264Capture | None:
+        """The camera's own H.264, recorded as it is; None if this camera or mode can't do it."""
+        s = self.camera.settings
+        if not src.startswith("/dev/video") or not has_h264(src, s.width, s.height, self.target_fps):
+            log.warning("%s: %s offers no H.264 at %dx%d %d fps; encoding the frames instead",
+                        self.camera.id, src, s.width, s.height, self.target_fps)
+            return None
+        ring = self.recorder.start_copy()
+        if ring is None:
+            return None
+        try:
+            cap = H264Capture(src, s.width, s.height, self.target_fps, ring)
+        except OSError as e:
+            log.error("%s: cannot start ffmpeg: %s", self.camera.id, e)
+            self.recorder.stop_copy()
+            return None
+        self._note(None)
+        self.device = src
+        self.codec = "copy"
+        self._ctl = ControlManager(src)
+        log.info("%s: opened %s (H.264, recorded as it is)", self.camera.id, src)
+        return cap
+
+    def _open(self) -> cv2.VideoCapture | H264Capture | None:
         src = self._resolve()
         if src is None:
             self._note("not plugged in")
             return None
+        if self.camera.settings.record_codec == "copy":
+            cap = self._open_copy(src)
+            if cap is not None:
+                return cap
+        self.codec = "x264"
         if src.isdigit():
             cap = cv2.VideoCapture(int(src))
         elif src.startswith("/dev/video"):
@@ -195,7 +226,8 @@ class CameraWorker:
 
                     # the dark set may ask for another frame rate: reopen in that mode
                     self.target_fps = (s.fps_dark or s.fps) if self._daynight.dark else s.fps
-                    want = (cam.source, cam.port, cam.device_id, s.width, s.height, self.target_fps)
+                    want = (cam.source, cam.port, cam.device_id, s.width, s.height, self.target_fps,
+                            s.record_codec)
                     if cap is not None and want != applied:
                         self._release(cap); cap = None     # reopen with new capture params
                     if cap is None:
@@ -257,9 +289,10 @@ class CameraWorker:
         if source:
             self._hub.subscribe(source, self.recorder.feed_audio)
 
-    def _release(self, cap: cv2.VideoCapture | None) -> None:
+    def _release(self, cap: cv2.VideoCapture | H264Capture | None) -> None:
         if cap is not None:
             cap.release()
+        self.recorder.stop_copy()       # the last ring segment is closed now: finish the clip
         if self._ctl:
             self._ctl.close()
             self._ctl = None

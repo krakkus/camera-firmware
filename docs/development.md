@@ -13,6 +13,7 @@ firmware/
   worker.py             per-camera capture thread: frames for the live view, recorder,
                         image controls, day/night and RTSP
   recorder.py           ffmpeg encoder feed, recording segments, motion detection, pre-roll
+  passthrough.py        hardware (copy) mode: ffmpeg owns the camera, ring of segments, clips
   rtsp.py               RTSP server: on-demand encoder per camera, fan-out to viewers
   controls.py           V4L2 controls and the software loop
   daynight.py           which control set applies: light level, or sunset and sunrise

@@ -49,6 +49,38 @@ A change of resolution or storage location starts a new file. A change of frame 
 instance when the dark set uses another one) does not; the picture freezes for about a
 second while the camera reopens.
 
+## Software or hardware encoding
+
+Per camera, **Encoding** on the Config page (`record_codec`) chooses how recordings are made.
+
+| | Software (`x264`) | Hardware (`copy`) |
+|---|---|---|
+| What it does | the firmware encodes the frames it captures | records the camera's own H.264 stream, without encoding |
+| Needs | any camera | a camera that offers H.264 in the chosen resolution and frame rate |
+| CPU | high: it is the biggest load of the firmware | very low |
+| Rotation, flips | yes | no |
+| Audio | yes | no |
+| Quality | `record_crf` | what the camera's encoder gives |
+
+The Config page offers Hardware only when the camera has an H.264 mode at the chosen
+resolution and frame rate; choosing it greys out rotation, flips and the quality. If a camera
+that was saved as Hardware loses that mode, it is recorded in software instead.
+
+### Hardware (copy) mode
+
+One ffmpeg process owns the camera. It copies the camera's H.264 into a ring of 2-second
+segments in `<storage_dir>/<camera id>/ring/`, and sends a small decoded picture (at most
+960 pixels wide, 10 fps) to the firmware, which uses it for the live view, snapshots, motion
+and person detection and the image controls. A recording is a range of ring segments joined
+into one mp4 without encoding, so continuous, motion and person recording all work the same
+way, with pre-roll and post-roll, and changing the record mode never reopens the camera.
+
+- Cuts happen at the camera's keyframes, so pre-roll is accurate to about one keyframe
+  interval, and a recording can run a little past its post-roll.
+- The live view, snapshots and RTSP (which encodes the live frames itself) show the small
+  picture, not the full resolution.
+- Segments a crash or power cut left in the ring are made into recordings at the next start.
+
 ## Storage and pruning
 
 The storage location is chosen on the Config page: suggested disks, or any path. A new

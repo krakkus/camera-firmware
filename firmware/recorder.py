@@ -20,6 +20,7 @@ from .audio import RATE, SAMPLE_BYTES
 from .camera import CameraSettings
 from .camera_server import DeviceConfig
 from .objects import ObjectWatcher, PersonDetector
+from .passthrough import RingClips
 
 log = logging.getLogger(__name__)
 
@@ -221,6 +222,7 @@ class Recorder:
         self._audio_keep = 1.0
         self._last_audio = 0.0
         self.motion = False
+        self.copy: RingClips | None = None  # H.264 copy mode (passthrough.py), else None
 
     @property
     def dir(self) -> Path:
@@ -240,7 +242,25 @@ class Recorder:
 
     @property
     def recording(self) -> bool:
-        return self._seg is not None
+        return self._seg is not None or (self.copy is not None and self.copy.recording)
+
+    def start_copy(self) -> Path | None:
+        """Switch to copy mode: the folder the capture writes its ring to, or None if the
+        storage can't be used. Footage a crash left in the ring is made into recordings."""
+        if not self._ensure_dir():
+            return None
+        self.close()
+        ring = self.dir / "ring"
+        ring.mkdir(exist_ok=True)
+        self.copy = RingClips(ring, self.dir, self._max_segment())
+        self.copy.recover()
+        return ring
+
+    def stop_copy(self) -> None:
+        """Back to encoding frames ourselves; finish the clip in progress first."""
+        if self.copy is not None:
+            self.copy.close()
+            self.copy = None
 
     # -- audio thread --------------------------------------------------
 
@@ -293,6 +313,9 @@ class Recorder:
     def process(self, frame: np.ndarray, s: CameraSettings, fps: float) -> None:
         now = time.monotonic()
         mode = s.record_mode
+        if self.copy is not None:
+            self._process_copy(now, frame, s)
+            return
 
         if mode in ("off", "continuous", "motion"):
             self.objects = []
@@ -313,17 +336,7 @@ class Recorder:
 
         # motion / object mode: something has to trigger the recording
         self._audio_keep = max(1.0, float(s.pre_roll_seconds))
-        if mode == "motion":
-            self.motion = self._detector.detect(frame, s)
-            self.objects = []
-            trigger, suffix = self.motion, "_motion"
-        else:
-            self.motion = False
-            self._watcher.submit(frame, s.object_confidence)
-            self.objects = self._watcher.current()
-            trigger, suffix = bool(self.objects), "_object"
-        if trigger:
-            self._last_motion = now
+        trigger, suffix = self._trigger(now, frame, s)
         active = self._seg is not None
         triggered = trigger or (active and now - self._last_motion <= s.post_roll_seconds)
 
@@ -337,8 +350,39 @@ class Recorder:
             while self._pre_roll and now - self._pre_roll[0][0] > s.pre_roll_seconds:
                 self._pre_roll.popleft()
 
+    def _trigger(self, now: float, frame: np.ndarray, s: CameraSettings) -> tuple[bool, str]:
+        """Motion or person detection on this frame: (something seen, file name suffix)."""
+        if s.record_mode == "motion":
+            self.motion = self._detector.detect(frame, s)
+            self.objects = []
+            trigger, suffix = self.motion, "_motion"
+        else:
+            self.motion = False
+            self._watcher.submit(frame, s.object_confidence)
+            self.objects = self._watcher.current()
+            trigger, suffix = bool(self.objects), "_object"
+        if trigger:
+            self._last_motion = now
+        return trigger, suffix
+
+    def _process_copy(self, now: float, frame: np.ndarray, s: CameraSettings) -> None:
+        """Copy mode: same triggers, but the footage is cut from the ring, not re-encoded."""
+        mode = s.record_mode
+        if mode in ("off", "continuous", "motion"):
+            self.objects = []
+            self._watcher.reset()
+        if mode in ("off", "continuous"):
+            self.motion = False
+            self.copy.update(mode == "continuous", "", s.pre_roll_seconds, now)
+            return
+        trigger, suffix = self._trigger(now, frame, s)
+        wanted = trigger or (self.copy.recording and now - self._last_motion <= s.post_roll_seconds)
+        self.copy.update(wanted, suffix, s.pre_roll_seconds, now)
+
     def close(self) -> None:
         """Stop recording and wait until the file is finalized."""
+        if self.copy is not None:
+            self.copy.close()
         closer = self._close()
         if closer:
             closer.join(timeout=30)
