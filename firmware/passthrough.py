@@ -162,7 +162,7 @@ class RingClips:
         group: list[tuple[datetime, Path]] = []
         for seg in _segments(self.ring) + [(datetime.max, Path())]:
             if group and (seg[0] - group[-1][0]).total_seconds() > 10 * SEGMENT_SECONDS:
-                self._join(group, group[0][0], "", "recovered")
+                self._join(group, group[0][0], "", "recovered", check=True)
                 group = []
             group.append(seg)
 
@@ -223,8 +223,18 @@ class RingClips:
                 return
             self._join(chosen, chosen[0][0], clip.suffix, "clip")
 
-    def _join(self, segs: list[tuple[datetime, Path]], start: datetime, suffix: str, what: str) -> None:
-        segs = [s for s in segs if s[1].name and s[1].exists()]
+    def _join(self, segs: list[tuple[datetime, Path]], start: datetime, suffix: str, what: str,
+              check: bool = False) -> None:
+        # a power cut leaves empty or half-written segments behind: skip those that are
+        # empty (less than one TS packet) up front
+        segs = [s for s in segs if s[1].name and s[1].exists() and s[1].stat().st_size >= 188]
+        if check:                                   # after a crash: one bad segment would cut the join short
+            bad = [p for _, p in segs if not self._readable(p)]
+            if bad:
+                log.warning("joining %s: leaving out %d unreadable segment(s)", what, len(bad))
+            segs = [s for s in segs if s[1] not in bad]
+            for p in bad:
+                p.unlink(missing_ok=True)
         if not segs:
             return
         out = self.clips / f"{start.strftime(NAME_FORMAT)}{suffix}.mp4"
@@ -232,6 +242,28 @@ class RingClips:
             start += timedelta(seconds=1)
             out = self.clips / f"{start.strftime(NAME_FORMAT)}{suffix}.mp4"
         tmp = out.with_suffix(".mp4.part")
+        err = self._concat(segs, tmp)
+        if err:
+            # one unreadable segment fails the whole join: leave those out and try again
+            good = [s for s in segs if self._readable(s[1])]
+            if good and len(good) < len(segs):
+                log.warning("joining %s: leaving out %d unreadable segment(s)", what, len(segs) - len(good))
+                err = self._concat(good, tmp)
+        if err:
+            log.error("joining %s failed: %s", what, err)
+            tmp.unlink(missing_ok=True)
+            for _, p in segs:                       # nothing usable in them: don't retry for ever
+                p.unlink(missing_ok=True)
+            return
+        tmp.replace(out)
+        self._consumed = max(self._consumed, segs[-1][0])
+        log.debug("%s uses segments %s .. %s", out.name, segs[0][1].name, segs[-1][1].name)
+        for _, p in segs:
+            p.unlink(missing_ok=True)
+        log.info("closed %s (%d segments)", out, len(segs))
+
+    def _concat(self, segs: list[tuple[datetime, Path]], tmp: Path) -> str:
+        """Join the segments into tmp without encoding; "" when it worked, else why not."""
         listing = self.ring / "join.txt"
         listing.write_text("".join(f"file '{p.name}'\n" for _, p in segs))
         try:
@@ -240,21 +272,23 @@ class RingClips:
                  "-i", str(listing), "-c", "copy",
                  "-movflags", "+frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", str(tmp)],
                 capture_output=True, timeout=600)
-            if r.returncode or not tmp.exists() or tmp.stat().st_size == 0:
-                log.error("joining %s failed: %s", what, r.stderr.decode(errors="replace")[-400:])
-                tmp.unlink(missing_ok=True)
-                return
-            tmp.replace(out)
         except (OSError, subprocess.SubprocessError) as e:
-            log.error("joining %s failed: %s", what, e)
-            return
+            return str(e)
         finally:
             listing.unlink(missing_ok=True)
-        self._consumed = max(self._consumed, segs[-1][0])
-        log.debug("%s uses segments %s .. %s", out.name, segs[0][1].name, segs[-1][1].name)
-        for _, p in segs:
-            p.unlink(missing_ok=True)
-        log.info("closed %s (%d segments)", out, len(segs))
+        if r.returncode or not tmp.exists() or tmp.stat().st_size == 0:
+            return r.stderr.decode(errors="replace")[-400:] or "no output"
+        return ""
+
+    @staticmethod
+    def _readable(path: Path) -> bool:
+        try:
+            r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                "stream=codec_name", "-of", "csv=p=0", str(path)],
+                               capture_output=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return r.returncode == 0 and bool(r.stdout.strip())
 
     def _tidy(self, pre_roll: float) -> None:
         """Drop ring segments nothing needs any more: older than the pre-roll plus a margin,
